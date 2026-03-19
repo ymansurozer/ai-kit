@@ -13,7 +13,7 @@ export function update(name?: string): void {
       process.exit(1);
     }
     if (!skill.source) {
-      log.error(`Skill "${name}" has no source — nothing to update`);
+      log.error(`Skill "${name}" is not a third-party skill — nothing to update`);
       process.exit(1);
     }
     sourced = [skill];
@@ -22,11 +22,11 @@ export function update(name?: string): void {
   }
 
   if (sourced.length === 0) {
-    log.warn("No sourced skills to update");
+    log.warn("No third-party skills to update");
     return;
   }
 
-  log.heading("Updating sourced skills");
+  log.heading("Updating third-party skills");
 
   let updated = 0;
   for (const skill of sourced) {
@@ -41,5 +41,5 @@ export function update(name?: string): void {
     }
   }
 
-  log.info(`Updated ${updated}/${sourced.length} sourced skill(s)`);
+  log.info(`Updated ${updated}/${sourced.length} third-party skill(s)`);
 }
