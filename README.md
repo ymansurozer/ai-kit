@@ -39,6 +39,15 @@ ai-kit sync
 # Scaffold a new skill or MCP
 ai-kit add skill my-skill
 ai-kit add mcp my-server
+
+# Add a skill from an external source
+ai-kit add skill frontend-design --from https://github.com/org/repo/tree/main/skills/frontend-design
+
+# Update all sourced skills from their origin
+ai-kit update
+
+# Update a specific sourced skill
+ai-kit update frontend-design
 ```
 
 ## Where things go
@@ -78,6 +87,20 @@ description: Review code for quality, patterns, and potential issues
 ```
 
 Or scaffold one with `ai-kit add skill code-review`.
+
+### External skills
+
+Some skills come from other people's repos. Add them with `--from`:
+
+```bash
+ai-kit add skill frontend-design --from https://github.com/anthropics/skills/tree/main/frontend-design
+```
+
+This fetches the `SKILL.md` and saves a `source.json` alongside it that records the origin URL. The `--from` flag accepts GitHub blob/tree URLs or raw URLs — they're all normalized automatically.
+
+Run `ai-kit update` to re-fetch all sourced skills, or `ai-kit update <name>` for a specific one. Skills you create yourself (without `--from`) are unaffected.
+
+`ai-kit list` marks external skills with `(sourced)`.
 
 ## Adding MCPs
 
