@@ -71,7 +71,7 @@ function mergeMcpsToml(
   writeFileSync(configPath, content.trimEnd() + "\n");
 }
 
-function removeTomlSection(content: string, sectionPrefix: string): string {
+export function removeTomlSection(content: string, sectionPrefix: string): string {
   const lines = content.split("\n");
   const result: string[] = [];
   let skipping = false;
@@ -99,7 +99,7 @@ function removeTomlSection(content: string, sectionPrefix: string): string {
   return result.join("\n");
 }
 
-function buildTomlSection(mcp: McpConfig): string {
+export function buildTomlSection(mcp: McpConfig): string {
   let section = `[mcp_servers.${mcp.name}]\n`;
   section += `command = ${tomlString(mcp.config.command)}\n`;
 
@@ -117,6 +117,6 @@ function buildTomlSection(mcp: McpConfig): string {
   return section;
 }
 
-function tomlString(value: string): string {
+export function tomlString(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }

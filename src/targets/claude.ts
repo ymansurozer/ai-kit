@@ -29,18 +29,20 @@ function installSkillsLocal(skills: Skill[], cwd: string): void {
   }
 }
 
+export function convertSkillToCommand(content: string): string {
+  const { data, body } = parseFrontmatter(content);
+  const entries = Object.entries(data).filter(([key]) => key !== "name");
+  const newFrontmatter = entries.map(([k, v]) => `${k}: ${v}`).join("\n");
+  return newFrontmatter ? `---\n${newFrontmatter}\n---\n${body}` : body;
+}
+
 function installSkillsGlobal(skills: Skill[]): void {
   const commandsDir = join(homedir(), ".claude", "commands");
   mkdirSync(commandsDir, { recursive: true });
 
   for (const skill of skills) {
     const content = readFileSync(skill.path, "utf-8");
-    const { data, body } = parseFrontmatter(content);
-
-    // Build new frontmatter without `name`
-    const entries = Object.entries(data).filter(([key]) => key !== "name");
-    const newFrontmatter = entries.map(([k, v]) => `${k}: ${v}`).join("\n");
-    const output = newFrontmatter ? `---\n${newFrontmatter}\n---\n${body}` : body;
+    const output = convertSkillToCommand(content);
 
     const dest = join(commandsDir, `${skill.name}.md`);
     writeFileSync(dest, output);

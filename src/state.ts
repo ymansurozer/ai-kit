@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
 import { homedir } from "os";
 
 export const STATE_DIR = join(homedir(), ".ai-kit");
@@ -18,18 +18,18 @@ export interface State {
   installations: Installation[];
 }
 
-export function readState(): State {
-  if (!existsSync(STATE_PATH)) return { installations: [] };
-  return JSON.parse(readFileSync(STATE_PATH, "utf-8"));
+export function readStateFrom(path: string): State {
+  if (!existsSync(path)) return { installations: [] };
+  return JSON.parse(readFileSync(path, "utf-8"));
 }
 
-export function writeState(state: State): void {
-  mkdirSync(STATE_DIR, { recursive: true });
-  writeFileSync(STATE_PATH, JSON.stringify(state, null, 2) + "\n");
+export function writeStateTo(path: string, state: State): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(state, null, 2) + "\n");
 }
 
-export function saveInstallation(installation: Installation): void {
-  const state = readState();
+export function saveInstallationTo(path: string, installation: Installation): void {
+  const state = readStateFrom(path);
 
   const idx = state.installations.findIndex(
     (i) =>
@@ -44,5 +44,17 @@ export function saveInstallation(installation: Installation): void {
     state.installations.push(installation);
   }
 
-  writeState(state);
+  writeStateTo(path, state);
+}
+
+export function readState(): State {
+  return readStateFrom(STATE_PATH);
+}
+
+export function writeState(state: State): void {
+  writeStateTo(STATE_PATH, state);
+}
+
+export function saveInstallation(installation: Installation): void {
+  saveInstallationTo(STATE_PATH, installation);
 }

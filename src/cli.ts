@@ -10,7 +10,7 @@ import { log } from "./log";
 const args = process.argv.slice(2);
 const command = args[0];
 
-function parseFlags(argv: string[]): Record<string, string | boolean> {
+export function parseFlags(argv: string[]): Record<string, string | boolean> {
   const flags: Record<string, string | boolean> = {};
   for (let i = 0; i < argv.length; i++) {
     if (argv[i].startsWith("--")) {
@@ -59,6 +59,8 @@ function showHelp(): void {
     ai-kit sync
 `);
 }
+
+if (import.meta.main) {
 
 if (!command || command === "--help" || command === "-h") {
   showHelp();
@@ -120,3 +122,5 @@ switch (command) {
     process.exit(1);
   }
 }
+
+} // import.meta.main

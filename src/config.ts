@@ -43,19 +43,19 @@ export function parseFrontmatter(content: string): { data: Record<string, string
   return { data, body: match[2] };
 }
 
-export function loadSkills(): Skill[] {
-  if (!existsSync(SKILLS_DIR)) return [];
+export function loadSkillsFrom(dir: string): Skill[] {
+  if (!existsSync(dir)) return [];
 
-  return readdirSync(SKILLS_DIR, { withFileTypes: true })
+  return readdirSync(dir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => {
-      const skillPath = join(SKILLS_DIR, d.name, "SKILL.md");
+      const skillPath = join(dir, d.name, "SKILL.md");
       if (!existsSync(skillPath)) return null;
 
       const content = readFileSync(skillPath, "utf-8");
       const { data, body } = parseFrontmatter(content);
 
-      const sourcePath = join(SKILLS_DIR, d.name, "source.json");
+      const sourcePath = join(dir, d.name, "source.json");
       const source = existsSync(sourcePath)
         ? JSON.parse(readFileSync(sourcePath, "utf-8"))
         : undefined;
@@ -71,13 +71,17 @@ export function loadSkills(): Skill[] {
     .filter((s): s is Skill => s !== null);
 }
 
-export function loadMcps(): McpConfig[] {
-  if (!existsSync(MCPS_DIR)) return [];
+export function loadSkills(): Skill[] {
+  return loadSkillsFrom(SKILLS_DIR);
+}
 
-  return readdirSync(MCPS_DIR)
+export function loadMcpsFrom(dir: string): McpConfig[] {
+  if (!existsSync(dir)) return [];
+
+  return readdirSync(dir)
     .filter((f) => f.endsWith(".json"))
     .map((f) => {
-      const mcpPath = join(MCPS_DIR, f);
+      const mcpPath = join(dir, f);
       const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
       return {
         name: f.replace(/\.json$/, ""),
@@ -86,4 +90,8 @@ export function loadMcps(): McpConfig[] {
         path: mcpPath,
       };
     });
+}
+
+export function loadMcps(): McpConfig[] {
+  return loadMcpsFrom(MCPS_DIR);
 }
