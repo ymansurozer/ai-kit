@@ -1,0 +1,108 @@
+#!/usr/bin/env bun
+
+import { install } from "./install";
+import { list } from "./list";
+import { sync } from "./sync";
+import { add } from "./add";
+import { log } from "./log";
+
+const args = process.argv.slice(2);
+const command = args[0];
+
+function parseFlags(argv: string[]): Record<string, string | boolean> {
+  const flags: Record<string, string | boolean> = {};
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i].startsWith("--")) {
+      const key = argv[i].slice(2);
+      const next = argv[i + 1];
+      if (next && !next.startsWith("--")) {
+        flags[key] = next;
+        i++;
+      } else {
+        flags[key] = true;
+      }
+    }
+  }
+  return flags;
+}
+
+function showHelp(): void {
+  console.log(`
+  ai-kit — Centralized AI Skills & MCP Manager
+
+  Usage:
+    ai-kit install <target>     Install skills and MCPs to a target
+    ai-kit list                 List available skills and MCPs
+    ai-kit sync                 Re-sync all tracked installations
+    ai-kit add skill <name>     Scaffold a new skill
+    ai-kit add mcp <name>       Scaffold a new MCP config
+
+  Targets:
+    claude, codex, pi
+
+  Flags:
+    --global                    Install globally instead of per-repo
+    --skills <names>            Cherry-pick skills (comma-separated)
+    --mcps <names>              Cherry-pick MCPs (comma-separated)
+
+  Examples:
+    ai-kit install claude
+    ai-kit install claude --global
+    ai-kit install codex --skills review,humanizer --mcps playwright
+    ai-kit install pi
+    ai-kit sync
+`);
+}
+
+if (!command || command === "--help" || command === "-h") {
+  showHelp();
+  process.exit(0);
+}
+
+switch (command) {
+  case "install": {
+    const target = args[1];
+    if (!target) {
+      log.error("Missing target. Usage: ai-kit install <target>");
+      process.exit(1);
+    }
+    const flags = parseFlags(args.slice(2));
+    install(target, {
+      global: flags.global === true,
+      skills:
+        typeof flags.skills === "string"
+          ? flags.skills.split(",")
+          : undefined,
+      mcps:
+        typeof flags.mcps === "string" ? flags.mcps.split(",") : undefined,
+    });
+    break;
+  }
+
+  case "list": {
+    list();
+    break;
+  }
+
+  case "sync": {
+    sync();
+    break;
+  }
+
+  case "add": {
+    const type = args[1];
+    const name = args[2];
+    if (!type || !name) {
+      log.error("Usage: ai-kit add <skill|mcp> <name>");
+      process.exit(1);
+    }
+    add(type, name);
+    break;
+  }
+
+  default: {
+    log.error(`Unknown command: ${command}`);
+    showHelp();
+    process.exit(1);
+  }
+}
