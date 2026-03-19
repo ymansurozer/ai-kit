@@ -25,7 +25,7 @@ You use multiple AI coding tools. Each has its own config format and file locati
 your-ai-kit/
 ├── skills/
 │   ├── writing-style/SKILL.md       # your skills
-│   ├── frontend-design/SKILL.md     # sourced from others
+│   ├── frontend-design/SKILL.md     # third-party skills
 │   └── ...
 ├── mcps/
 │   ├── playwright.json              # external MCP configs
@@ -156,6 +156,11 @@ That's it. Commit your repo, and you have a portable, versioned collection of AI
 
 ## Where things land
 
+Both skills and MCPs (including local servers) support two install scopes:
+
+- **Per-repo** (default) — installed into the current project directory. Only available when working in that repo.
+- **Global** (`--global`) — installed into your home directory. Available in every project.
+
 ### Per-repo (default)
 
 | Target | Skills | MCPs |
@@ -172,6 +177,8 @@ That's it. Commit your repo, and you have a portable, versioned collection of AI
 | Codex | `~/.agents/skills/<name>/SKILL.md` | `~/.codex/config.toml` |
 | Pi | `~/.pi/agent/skills/<name>/SKILL.md` | — |
 
+You can mix both — install some skills globally and others per-repo. `ai-kit sync` re-installs to all tracked locations.
+
 ## All commands
 
 | Command | What it does |
@@ -185,27 +192,31 @@ That's it. Commit your repo, and you have a portable, versioned collection of AI
 | `ai-kit add skill <name> --from <source>` | Fetch a skill from the ecosystem |
 | `ai-kit add mcp <name>` | Scaffold a new MCP config |
 | `ai-kit add server <name>` | Scaffold a local MCP server (FastMCP) |
-| `ai-kit update` | Re-fetch all sourced skills |
-| `ai-kit update <name>` | Re-fetch a specific sourced skill |
+| `ai-kit update` | Re-fetch all third-party skills |
+| `ai-kit update <name>` | Re-fetch a specific third-party skill |
 | `ai-kit sync` | Re-install to all previously tracked targets |
 
-## External skills
+## Third-party skills
 
-Some skills come from other people's repos. Add them with `--from`:
-
-```bash
-ai-kit add skill frontend-design --from vercel-labs/agent-skills
-```
-
-Under the hood this uses [Vercel's skills CLI](https://github.com/vercel-labs/skills) (`bunx skills add`) to fetch the skill. A `source.json` is saved alongside the `SKILL.md` to track the origin.
+Not every skill is yours — some come from other people's repos. ai-kit tracks where they came from so you can update them later when the original author makes changes.
 
 ```bash
-ai-kit update                        # re-fetch all sourced skills
-ai-kit update frontend-design  # re-fetch one
-ai-kit list                          # sourced skills are marked
+# Add a third-party skill
+ai-kit add skill frontend-design --from anthropics/skills
+
+# Update all third-party skills from their origins
+ai-kit update
+
+# Update a specific one
+ai-kit update frontend-design
+
+# Third-party skills are marked in the list
+ai-kit list
 ```
 
-Browse the ecosystem at **[skills.sh](https://skills.sh)**.
+Under the hood this uses [Vercel's skills CLI](https://github.com/vercel-labs/skills) to fetch the skill. A `source.json` is saved alongside the `SKILL.md` to record the origin.
+
+Browse available third-party skills at **[skills.sh](https://skills.sh)**.
 
 ## Design
 

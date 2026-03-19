@@ -39,7 +39,7 @@ function showHelp(): void {
     ai-kit add skill <n> --from <repo>  Add skill from skills.sh / GitHub
     ai-kit add mcp <name>       Scaffold a new MCP config
     ai-kit add server <name>    Scaffold a local MCP server (FastMCP)
-    ai-kit update [name]        Update sourced skills from origin
+    ai-kit update [name]        Update third-party skills from origin
 
   Targets:
     claude, codex, pi
