@@ -1,6 +1,6 @@
 import { existsSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
-import { SKILLS_DIR, MCPS_DIR } from "./config";
+import { SKILLS_DIR, MCPS_DIR, SERVERS_DIR } from "./config";
 import { fetchSkill } from "./fetch-skill";
 import { log } from "./log";
 
@@ -13,8 +13,10 @@ export function add(type: string, name: string, options: AddOptions = {}): void 
     addSkill(name, options);
   } else if (type === "mcp") {
     addMcp(name);
+  } else if (type === "server") {
+    addServer(name);
   } else {
-    log.error(`Unknown type: ${type}. Use "skill" or "mcp".`);
+    log.error(`Unknown type: ${type}. Use "skill", "mcp", or "server".`);
     process.exit(1);
   }
 }
@@ -78,4 +80,50 @@ function addMcp(name: string): void {
   );
 
   log.success(`Created MCP: mcps/${name}.json`);
+}
+
+function addServer(name: string): void {
+  const dir = join(SERVERS_DIR, name);
+
+  if (existsSync(dir)) {
+    log.error(`Server already exists: ${name}`);
+    process.exit(1);
+  }
+
+  mkdirSync(dir, { recursive: true });
+
+  writeFileSync(
+    join(dir, "index.ts"),
+    `import { FastMCP } from "fastmcp";
+import { z } from "zod";
+
+const server = new FastMCP("${name}");
+
+server.addTool({
+  name: "hello",
+  description: "A sample tool — replace with your own",
+  parameters: z.object({
+    message: z.string().describe("A message to echo back"),
+  }),
+  execute: async ({ message }) => {
+    return \`Hello: \${message}\`;
+  },
+});
+
+server.start({ transportType: "stdio" });
+`,
+  );
+
+  writeFileSync(
+    join(dir, "server.json"),
+    JSON.stringify(
+      { description: "TODO — describe this MCP server" },
+      null,
+      2,
+    ) + "\n",
+  );
+
+  log.success(`Created server: servers/${name}/`);
+  log.dim("  Edit index.ts to add your tools, then run:");
+  log.dim(`  ai-kit install claude`);
 }
