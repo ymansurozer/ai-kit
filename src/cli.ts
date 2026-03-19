@@ -4,6 +4,7 @@ import { install } from "./install";
 import { list } from "./list";
 import { sync } from "./sync";
 import { add } from "./add";
+import { update } from "./update";
 import { log } from "./log";
 
 const args = process.argv.slice(2);
@@ -35,7 +36,9 @@ function showHelp(): void {
     ai-kit list                 List available skills and MCPs
     ai-kit sync                 Re-sync all tracked installations
     ai-kit add skill <name>     Scaffold a new skill
+    ai-kit add skill <n> --from <url>  Add skill from external source
     ai-kit add mcp <name>       Scaffold a new MCP config
+    ai-kit update [name]        Update sourced skills from origin
 
   Targets:
     claude, codex, pi
@@ -44,12 +47,15 @@ function showHelp(): void {
     --global                    Install globally instead of per-repo
     --skills <names>            Cherry-pick skills (comma-separated)
     --mcps <names>              Cherry-pick MCPs (comma-separated)
+    --from <url>                Source URL for external skills (GitHub or raw)
 
   Examples:
     ai-kit install claude
     ai-kit install claude --global
     ai-kit install codex --skills review,humanizer --mcps playwright
     ai-kit install pi
+    ai-kit add skill design --from https://github.com/org/repo/tree/main/skills/design
+    ai-kit update
     ai-kit sync
 `);
 }
@@ -96,7 +102,15 @@ switch (command) {
       log.error("Usage: ai-kit add <skill|mcp> <name>");
       process.exit(1);
     }
-    add(type, name);
+    const addFlags = parseFlags(args.slice(3));
+    await add(type, name, {
+      from: typeof addFlags.from === "string" ? addFlags.from : undefined,
+    });
+    break;
+  }
+
+  case "update": {
+    await update(args[1]);
     break;
   }
 

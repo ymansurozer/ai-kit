@@ -10,8 +10,9 @@ export function list(): void {
     log.dim("  No skills found. Run `ai-kit add skill <name>` to create one.");
   } else {
     for (const skill of skills) {
+      const sourced = skill.source ? "  \x1b[2m(sourced)\x1b[0m" : "";
       console.log(
-        `  ${skill.name}${skill.description ? `  — ${skill.description}` : ""}`,
+        `  ${skill.name}${skill.description ? `  — ${skill.description}` : ""}${sourced}`,
       );
     }
   }
