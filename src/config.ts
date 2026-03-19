@@ -48,29 +48,29 @@ export function parseFrontmatter(content: string): { data: Record<string, string
 export function loadSkillsFrom(dir: string): Skill[] {
   if (!existsSync(dir)) return [];
 
-  return readdirSync(dir, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => {
-      const skillPath = join(dir, d.name, "SKILL.md");
-      if (!existsSync(skillPath)) return null;
+  const skills: Skill[] = [];
+  for (const d of readdirSync(dir, { withFileTypes: true })) {
+    if (!d.isDirectory()) continue;
+    const skillPath = join(dir, d.name, "SKILL.md");
+    if (!existsSync(skillPath)) continue;
 
-      const content = readFileSync(skillPath, "utf-8");
-      const { data, body } = parseFrontmatter(content);
+    const content = readFileSync(skillPath, "utf-8");
+    const { data, body } = parseFrontmatter(content);
 
-      const sourcePath = join(dir, d.name, "source.json");
-      const source = existsSync(sourcePath)
-        ? JSON.parse(readFileSync(sourcePath, "utf-8"))
-        : undefined;
+    const sourcePath = join(dir, d.name, "source.json");
+    const source: SkillSource | undefined = existsSync(sourcePath)
+      ? JSON.parse(readFileSync(sourcePath, "utf-8"))
+      : undefined;
 
-      return {
-        name: data.name || d.name,
-        description: data.description || "",
-        body,
-        path: skillPath,
-        source,
-      };
-    })
-    .filter((s): s is Skill => s !== null);
+    skills.push({
+      name: data.name || d.name,
+      description: data.description || "",
+      body,
+      path: skillPath,
+      source,
+    });
+  }
+  return skills;
 }
 
 export function loadSkills(): Skill[] {
@@ -97,32 +97,32 @@ export function loadMcpsFrom(dir: string): McpConfig[] {
 export function loadServersFrom(dir: string): McpConfig[] {
   if (!existsSync(dir)) return [];
 
-  return readdirSync(dir, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => {
-      const entryPath = join(dir, d.name, "index.ts");
-      if (!existsSync(entryPath)) return null;
+  const servers: McpConfig[] = [];
+  for (const d of readdirSync(dir, { withFileTypes: true })) {
+    if (!d.isDirectory()) continue;
+    const entryPath = join(dir, d.name, "index.ts");
+    if (!existsSync(entryPath)) continue;
 
-      const metaPath = join(dir, d.name, "server.json");
-      const meta = existsSync(metaPath)
-        ? JSON.parse(readFileSync(metaPath, "utf-8"))
-        : {};
+    const metaPath = join(dir, d.name, "server.json");
+    const meta = existsSync(metaPath)
+      ? JSON.parse(readFileSync(metaPath, "utf-8"))
+      : {};
 
-      const config: McpConfig["config"] = {
-        command: "bun",
-        args: ["run", entryPath],
-      };
-      if (meta.env) config.env = meta.env;
+    const config: McpConfig["config"] = {
+      command: "bun",
+      args: ["run", entryPath],
+    };
+    if (meta.env) config.env = meta.env;
 
-      return {
-        name: d.name,
-        description: meta.description || "",
-        config,
-        path: entryPath,
-        isLocal: true,
-      };
-    })
-    .filter((s): s is McpConfig => s !== null);
+    servers.push({
+      name: d.name,
+      description: meta.description || "",
+      config,
+      path: entryPath,
+      isLocal: true,
+    });
+  }
+  return servers;
 }
 
 export function loadServers(): McpConfig[] {
