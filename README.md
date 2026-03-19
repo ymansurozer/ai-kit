@@ -24,14 +24,14 @@ You use multiple AI coding tools. Each has its own config format and file locati
 ```
 your-ai-kit/
 ├── skills/
-│   ├── code-review/SKILL.md        # your skills
-│   ├── web-design/SKILL.md         # sourced from others
+│   ├── writing-style/SKILL.md       # your skills
+│   ├── frontend-design/SKILL.md     # sourced from others
 │   └── ...
 ├── mcps/
 │   ├── playwright.json              # external MCP configs
 │   └── ...
 ├── servers/
-│   └── gemini-images/index.ts       # your own MCP servers
+│   └── image-gen/index.ts           # your own MCP servers
 └── package.json
 ```
 
@@ -40,22 +40,22 @@ One `ai-kit install claude` and everything lands in the right place.
 ## How it works
 
 ```
-┌─────────────────────────────────────────────────┐
-│                   ai-kit repo                   │
-│                                                 │
-│  skills/            mcps/          servers/      │
-│  ├── code-review/   ├── playwright.json  gemini/ │
-│  ├── humanizer/     └── context7.json           │
-│  └── web-design/                                │
-└────────────┬──────────────────┬─────────────────┘
-             │  ai-kit install  │
-      ┌──────┴──────┐   ┌──────┴──────┐
-      │  per-repo   │   │   global    │
-      └──────┬──────┘   └──────┬──────┘
-             │                 │
-    ┌────────┼────────┐  ┌────┼────────┐
-    ▼        ▼        ▼  ▼    ▼        ▼
- Claude   Codex     Pi  Claude Codex  Pi
+┌─────────────────────────────────────────────────────────────┐
+│                         ai-kit repo                         │
+│                                                             │
+│  skills/               mcps/                servers/        │
+│  ├── writing-style/    ├── playwright.json  ├── image-gen/  │
+│  ├── humanizer/        └── context7.json                    │
+│  └── frontend-design/                                       │
+└───────────────┬─────────────────────────────┬───────────────┘
+                │       ai-kit install        │
+         ┌──────┴──────┐               ┌──────┴──────┐
+         │  per-repo   │               │   global    │
+         └──────┬──────┘               └──────┬──────┘
+                │                             │
+       ┌────────┼────────┐           ┌────────┼────────┐
+       ▼        ▼        ▼           ▼        ▼        ▼
+    Claude    Codex     Pi        Claude    Codex     Pi
 ```
 
 Skills use the [Agent Skills](https://github.com/anthropics/agent-skills) standard — a `SKILL.md` format natively supported by Claude Code, Codex, Pi, Cursor, Gemini CLI, and [30+ other tools](https://skills.sh).
@@ -77,10 +77,10 @@ bun install && bun link
 
 ```bash
 # Create a new skill from template
-ai-kit add skill code-review
+ai-kit add skill writing-style
 
 # Or grab one from the skills.sh ecosystem
-ai-kit add skill web-design-guidelines --from vercel-labs/agent-skills
+ai-kit add skill frontend-design --from anthropics/skills
 ```
 
 ### 3. Add your MCPs
@@ -97,7 +97,7 @@ Then edit `mcps/playwright.json`:
   "description": "Browser automation with Playwright",
   "config": {
     "command": "npx",
-    "args": ["-y", "@anthropic/mcp-playwright"]
+    "args": ["-y", "@playwright/mcp"]
   }
 }
 ```
@@ -107,25 +107,25 @@ Then edit `mcps/playwright.json`:
 For services that don't have an MCP server, write one directly in the repo using [FastMCP](https://github.com/punkpeye/fastmcp):
 
 ```bash
-ai-kit add server gemini-images
+ai-kit add server image-gen
 ```
 
-This scaffolds `servers/gemini-images/index.ts` with a FastMCP boilerplate. Add your tools:
+This scaffolds `servers/image-gen/index.ts` with a FastMCP boilerplate. Add your tools:
 
 ```typescript
 import { FastMCP } from "fastmcp";
 import { z } from "zod";
 
-const server = new FastMCP("gemini-images");
+const server = new FastMCP("image-gen");
 
 server.addTool({
   name: "generate_image",
-  description: "Generate an image with Google Gemini",
+  description: "Generate an image from a text prompt",
   parameters: z.object({
     prompt: z.string().describe("What to generate"),
   }),
   execute: async ({ prompt }) => {
-    // call Gemini API here
+    // call your image API here
     return "image generated";
   },
 });
@@ -149,7 +149,7 @@ ai-kit install codex
 ai-kit install pi
 
 # Cherry-pick what you need
-ai-kit install claude --skills code-review,humanizer --mcps playwright
+ai-kit install claude --skills writing-style,humanizer --mcps playwright
 ```
 
 That's it. Commit your repo, and you have a portable, versioned collection of AI skills and MCP configs.
@@ -194,14 +194,14 @@ That's it. Commit your repo, and you have a portable, versioned collection of AI
 Some skills come from other people's repos. Add them with `--from`:
 
 ```bash
-ai-kit add skill web-design-guidelines --from vercel-labs/agent-skills
+ai-kit add skill frontend-design --from vercel-labs/agent-skills
 ```
 
 Under the hood this uses [Vercel's skills CLI](https://github.com/vercel-labs/skills) (`bunx skills add`) to fetch the skill. A `source.json` is saved alongside the `SKILL.md` to track the origin.
 
 ```bash
 ai-kit update                        # re-fetch all sourced skills
-ai-kit update web-design-guidelines  # re-fetch one
+ai-kit update frontend-design  # re-fetch one
 ai-kit list                          # sourced skills are marked
 ```
 
