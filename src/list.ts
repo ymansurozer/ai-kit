@@ -22,8 +22,9 @@ export function list(): void {
     log.dim("  No MCPs found. Run `ai-kit add mcp <name>` to create one.");
   } else {
     for (const mcp of mcps) {
+      const local = mcp.isLocal ? "  \x1b[2m(local)\x1b[0m" : "";
       console.log(
-        `  ${mcp.name}${mcp.description ? `  — ${mcp.description}` : ""}`,
+        `  ${mcp.name}${mcp.description ? `  — ${mcp.description}` : ""}${local}`,
       );
     }
   }

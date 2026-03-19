@@ -1,110 +1,96 @@
+<div align="center">
+
 # ai-kit
 
-Centralized AI skills and MCP configs in one repo. Install them to Claude Code, Codex, or Pi — per-repo or globally.
+**Your AI skills and MCP servers, in one repo.**
 
-Skills use the [Agent Skills](https://github.com/anthropics/agent-skills) standard (`SKILL.md`), which is natively supported by Claude Code, Codex, Pi, Cursor, Gemini CLI, and 30+ other tools.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Bun](https://img.shields.io/badge/runtime-Bun-f9f1e1.svg)](https://bun.sh)
+[![Agent Skills](https://img.shields.io/badge/format-Agent%20Skills-8b5cf6.svg)](https://github.com/anthropics/agent-skills)
+[![FastMCP](https://img.shields.io/badge/servers-FastMCP-ff6b6b.svg)](https://github.com/punkpeye/fastmcp)
 
-## Install
+Centralize your [Agent Skills](https://github.com/anthropics/agent-skills) and [MCP](https://modelcontextprotocol.io/) server configs in a single git repo. Install them to **Claude Code**, **Codex**, or **Pi** — per-repo or globally — with one command.
 
-```bash
-# Clone and link globally
-git clone https://github.com/ymansurozer/ai-kit.git ~/Developer/ai-kit
-cd ~/Developer/ai-kit
-bun install
-bun link
-```
+</div>
 
-Requires [Bun](https://bun.sh). Zero runtime dependencies.
-
-## Usage
-
-```bash
-# Install all skills + MCPs to a target (per-repo)
-ai-kit install claude
-ai-kit install codex
-ai-kit install pi
-
-# Install globally
-ai-kit install claude --global
-
-# Cherry-pick specific skills/MCPs
-ai-kit install claude --skills code-review,humanizer --mcps playwright
-
-# List available skills and MCPs
-ai-kit list
-
-# Re-sync all tracked installations
-ai-kit sync
-
-# Scaffold a new skill or MCP
-ai-kit add skill my-skill
-ai-kit add mcp my-server
-
-# Add a skill from the skills.sh ecosystem
-ai-kit add skill web-design-guidelines --from vercel-labs/agent-skills
-
-# Update all sourced skills from their origin
-ai-kit update
-
-# Update a specific sourced skill
-ai-kit update web-design-guidelines
-```
-
-## Where things go
-
-### Per-repo (default)
-
-| Target | Skills | MCPs |
-|--------|--------|------|
-| claude | `.agents/skills/<name>/SKILL.md` | `.mcp.json` |
-| codex | `.agents/skills/<name>/SKILL.md` | `.codex/config.toml` |
-| pi | `.agents/skills/<name>/SKILL.md` | N/A |
-
-### Global (`--global`)
-
-| Target | Skills | MCPs |
-|--------|--------|------|
-| claude | `~/.claude/commands/<name>.md` | `~/.claude/settings.json` |
-| codex | `~/.agents/skills/<name>/SKILL.md` | `~/.codex/config.toml` |
-| pi | `~/.pi/agent/skills/<name>/SKILL.md` | N/A |
-
-## Adding skills
-
-Create a folder under `skills/` with a `SKILL.md`:
-
-```markdown
----
-name: code-review
-description: Review code for quality, patterns, and potential issues
 ---
 
-# Code Review
+## Why
 
-## Steps
-1. Read the changed files
-2. Analyze for patterns, bugs, security issues
-...
+You use multiple AI coding tools. Each has its own config format and file locations. You've got skills scattered across repos, MCP configs copy-pasted between projects, and no single source of truth.
+
+**ai-kit** is a personal monorepo for all of it:
+
+```
+your-ai-kit/
+├── skills/
+│   ├── code-review/SKILL.md        # your skills
+│   ├── web-design/SKILL.md         # sourced from others
+│   └── ...
+├── mcps/
+│   ├── playwright.json              # external MCP configs
+│   └── ...
+├── servers/
+│   └── gemini-images/index.ts       # your own MCP servers
+└── package.json
 ```
 
-Or scaffold one with `ai-kit add skill code-review`.
+One `ai-kit install claude` and everything lands in the right place.
 
-### External skills
+## How it works
 
-Some skills come from other people's repos. Add them with `--from` using any source that [Vercel's skills CLI](https://github.com/vercel-labs/skills) supports — GitHub shorthand, full URLs, etc:
+```
+┌─────────────────────────────────────────────────┐
+│                   ai-kit repo                   │
+│                                                 │
+│  skills/            mcps/          servers/      │
+│  ├── code-review/   ├── playwright.json  gemini/ │
+│  ├── humanizer/     └── context7.json           │
+│  └── web-design/                                │
+└────────────┬──────────────────┬─────────────────┘
+             │  ai-kit install  │
+      ┌──────┴──────┐   ┌──────┴──────┐
+      │  per-repo   │   │   global    │
+      └──────┬──────┘   └──────┬──────┘
+             │                 │
+    ┌────────┼────────┐  ┌────┼────────┐
+    ▼        ▼        ▼  ▼    ▼        ▼
+ Claude   Codex     Pi  Claude Codex  Pi
+```
+
+Skills use the [Agent Skills](https://github.com/anthropics/agent-skills) standard — a `SKILL.md` format natively supported by Claude Code, Codex, Pi, Cursor, Gemini CLI, and [30+ other tools](https://skills.sh).
+
+## Quick start
+
+### 1. Fork or clone
 
 ```bash
+# Fork this repo on GitHub, then:
+git clone https://github.com/YOUR_USERNAME/ai-kit.git ~/ai-kit
+cd ~/ai-kit
+bun install && bun link
+```
+
+> Requires [Bun](https://bun.sh). Zero runtime dependencies.
+
+### 2. Add your skills
+
+```bash
+# Create a new skill from template
+ai-kit add skill code-review
+
+# Or grab one from the skills.sh ecosystem
 ai-kit add skill web-design-guidelines --from vercel-labs/agent-skills
 ```
 
-Under the hood this runs `bunx skills add` to fetch the skill, then saves a `source.json` alongside the `SKILL.md` that records the origin. Run `ai-kit update` to re-fetch all sourced skills, or `ai-kit update <name>` for a specific one. Skills you create yourself (without `--from`) are unaffected.
+### 3. Add your MCPs
 
-`ai-kit list` marks external skills with `(sourced)`.
+```bash
+# Create a new MCP config from template
+ai-kit add mcp playwright
+```
 
-Browse available skills at [skills.sh](https://skills.sh).
-
-## Adding MCPs
-
-Create a JSON file under `mcps/`:
+Then edit `mcps/playwright.json`:
 
 ```json
 {
@@ -116,18 +102,139 @@ Create a JSON file under `mcps/`:
 }
 ```
 
-Or scaffold one with `ai-kit add mcp playwright`.
+### 4. Write your own MCP servers
 
-The `config` object is written directly into the target's MCP configuration.
+For services that don't have an MCP server, write one directly in the repo using [FastMCP](https://github.com/punkpeye/fastmcp):
 
-## Sync
+```bash
+ai-kit add server gemini-images
+```
 
-`ai-kit sync` re-reads the current skills and MCPs from the repo and re-installs to all previously tracked targets. Useful after adding or editing skills — run once to propagate everywhere.
+This scaffolds `servers/gemini-images/index.ts` with a FastMCP boilerplate. Add your tools:
 
-State is tracked in `~/.ai-kit/state.json`.
+```typescript
+import { FastMCP } from "fastmcp";
+import { z } from "zod";
 
-## Design decisions
+const server = new FastMCP("gemini-images");
 
-- **Copy, not symlink** — more portable across Docker, CI, and tools that don't follow symlinks
-- **Merge, don't overwrite** — MCP configs are merged into existing JSON/TOML, preserving non-ai-kit entries
-- **Agent Skills standard** — `SKILL.md` format works across 30+ tools without conversion (except Claude global, which uses its own commands format — the CLI handles the conversion)
+server.addTool({
+  name: "generate_image",
+  description: "Generate an image with Google Gemini",
+  parameters: z.object({
+    prompt: z.string().describe("What to generate"),
+  }),
+  execute: async ({ prompt }) => {
+    // call Gemini API here
+    return "image generated";
+  },
+});
+
+server.start({ transportType: "stdio" });
+```
+
+When you run `ai-kit install`, local servers are installed with their absolute path resolved automatically — no extra config needed.
+
+### 5. Install to your tools
+
+```bash
+# Install to Claude Code in the current repo
+ai-kit install claude
+
+# Install globally
+ai-kit install claude --global
+
+# Install to Codex or Pi
+ai-kit install codex
+ai-kit install pi
+
+# Cherry-pick what you need
+ai-kit install claude --skills code-review,humanizer --mcps playwright
+```
+
+That's it. Commit your repo, and you have a portable, versioned collection of AI skills and MCP configs.
+
+## Where things land
+
+### Per-repo (default)
+
+| Target | Skills | MCPs |
+|--------|--------|------|
+| Claude | `.agents/skills/<name>/SKILL.md` | `.mcp.json` |
+| Codex | `.agents/skills/<name>/SKILL.md` | `.codex/config.toml` |
+| Pi | `.agents/skills/<name>/SKILL.md` | — |
+
+### Global (`--global`)
+
+| Target | Skills | MCPs |
+|--------|--------|------|
+| Claude | `~/.claude/commands/<name>.md` | `~/.claude/settings.json` |
+| Codex | `~/.agents/skills/<name>/SKILL.md` | `~/.codex/config.toml` |
+| Pi | `~/.pi/agent/skills/<name>/SKILL.md` | — |
+
+## All commands
+
+| Command | What it does |
+|---------|-------------|
+| `ai-kit install <target>` | Install skills + MCPs to a target |
+| `ai-kit install <target> --global` | Install globally instead of per-repo |
+| `ai-kit install <target> --skills a,b` | Install only specific skills |
+| `ai-kit install <target> --mcps x,y` | Install only specific MCPs |
+| `ai-kit list` | List all available skills and MCPs |
+| `ai-kit add skill <name>` | Scaffold a new skill |
+| `ai-kit add skill <name> --from <source>` | Fetch a skill from the ecosystem |
+| `ai-kit add mcp <name>` | Scaffold a new MCP config |
+| `ai-kit add server <name>` | Scaffold a local MCP server (FastMCP) |
+| `ai-kit update` | Re-fetch all sourced skills |
+| `ai-kit update <name>` | Re-fetch a specific sourced skill |
+| `ai-kit sync` | Re-install to all previously tracked targets |
+
+## External skills
+
+Some skills come from other people's repos. Add them with `--from`:
+
+```bash
+ai-kit add skill web-design-guidelines --from vercel-labs/agent-skills
+```
+
+Under the hood this uses [Vercel's skills CLI](https://github.com/vercel-labs/skills) (`bunx skills add`) to fetch the skill. A `source.json` is saved alongside the `SKILL.md` to track the origin.
+
+```bash
+ai-kit update                        # re-fetch all sourced skills
+ai-kit update web-design-guidelines  # re-fetch one
+ai-kit list                          # sourced skills are marked
+```
+
+Browse the ecosystem at **[skills.sh](https://skills.sh)**.
+
+## Design
+
+- **Copy, not symlink** — portable across Docker, CI, and tools that don't follow symlinks
+- **Merge, not overwrite** — MCP configs are merged into existing JSON/TOML, preserving your other entries
+- **Agent Skills standard** — `SKILL.md` works across 30+ tools without conversion (Claude global commands are the one exception — the CLI handles it)
+- **Local MCP servers** — write your own with [FastMCP](https://github.com/punkpeye/fastmcp), paths resolved automatically at install time
+
+## Using as a template
+
+This repo is designed to be forked:
+
+1. **Fork** this repo to your GitHub
+2. **Clone** and run `bun install && bun link`
+3. **Delete** the example skills/MCPs/servers (or keep the ones you want)
+4. **Add** your own skills, MCPs, and local servers
+5. **Commit** and push — your AI toolkit is now versioned and portable
+
+When you set up a new machine, clone your fork and run `ai-kit install claude --global` to get everything in place.
+
+## Contributing
+
+PRs welcome. If you add a new install target, drop it in `src/targets/` and register it in `src/install.ts`.
+
+```bash
+bun test          # run all tests
+bun test --watch  # watch mode
+```
+
+## License
+
+[MIT](LICENSE)

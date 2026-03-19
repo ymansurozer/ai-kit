@@ -38,6 +38,7 @@ function showHelp(): void {
     ai-kit add skill <name>     Scaffold a new skill
     ai-kit add skill <n> --from <repo>  Add skill from skills.sh / GitHub
     ai-kit add mcp <name>       Scaffold a new MCP config
+    ai-kit add server <name>    Scaffold a local MCP server (FastMCP)
     ai-kit update [name]        Update sourced skills from origin
 
   Targets:
@@ -101,7 +102,7 @@ switch (command) {
     const type = args[1];
     const name = args[2];
     if (!type || !name) {
-      log.error("Usage: ai-kit add <skill|mcp> <name>");
+      log.error("Usage: ai-kit add <skill|mcp|server> <name>");
       process.exit(1);
     }
     const addFlags = parseFlags(args.slice(3));

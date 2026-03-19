@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { parseFrontmatter, loadSkillsFrom, loadMcpsFrom } from "./config";
+import { parseFrontmatter, loadSkillsFrom, loadMcpsFrom, loadServersFrom } from "./config";
 
 // --- parseFrontmatter (pure) ---
 
@@ -185,5 +185,80 @@ describe("loadMcpsFrom", () => {
   test("returns empty array when directory does not exist", () => {
     const mcps = loadMcpsFrom(join(tmpDir, "nonexistent"));
     expect(mcps).toEqual([]);
+  });
+});
+
+// --- loadServersFrom (temp dir) ---
+
+describe("loadServersFrom", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "ai-kit-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test("loads server with index.ts and server.json", () => {
+    mkdirSync(join(tmpDir, "my-server"), { recursive: true });
+    writeFileSync(join(tmpDir, "my-server", "index.ts"), "// server code");
+    writeFileSync(
+      join(tmpDir, "my-server", "server.json"),
+      JSON.stringify({ description: "My server" }),
+    );
+
+    const servers = loadServersFrom(tmpDir);
+    expect(servers).toHaveLength(1);
+    expect(servers[0].name).toBe("my-server");
+    expect(servers[0].description).toBe("My server");
+    expect(servers[0].config.command).toBe("bun");
+    expect(servers[0].config.args).toEqual([
+      "run",
+      join(tmpDir, "my-server", "index.ts"),
+    ]);
+    expect(servers[0].isLocal).toBe(true);
+  });
+
+  test("skips directories without index.ts", () => {
+    mkdirSync(join(tmpDir, "no-entry"), { recursive: true });
+    writeFileSync(
+      join(tmpDir, "no-entry", "server.json"),
+      JSON.stringify({ description: "missing entry" }),
+    );
+
+    const servers = loadServersFrom(tmpDir);
+    expect(servers).toEqual([]);
+  });
+
+  test("returns empty array when directory does not exist", () => {
+    const servers = loadServersFrom(join(tmpDir, "nonexistent"));
+    expect(servers).toEqual([]);
+  });
+
+  test("includes env from server.json in config", () => {
+    mkdirSync(join(tmpDir, "with-env"), { recursive: true });
+    writeFileSync(join(tmpDir, "with-env", "index.ts"), "// server code");
+    writeFileSync(
+      join(tmpDir, "with-env", "server.json"),
+      JSON.stringify({
+        description: "Has env",
+        env: { API_KEY: "test-key" },
+      }),
+    );
+
+    const servers = loadServersFrom(tmpDir);
+    expect(servers[0].config.env).toEqual({ API_KEY: "test-key" });
+  });
+
+  test("works without server.json", () => {
+    mkdirSync(join(tmpDir, "bare"), { recursive: true });
+    writeFileSync(join(tmpDir, "bare", "index.ts"), "// server code");
+
+    const servers = loadServersFrom(tmpDir);
+    expect(servers).toHaveLength(1);
+    expect(servers[0].name).toBe("bare");
+    expect(servers[0].description).toBe("");
   });
 });

@@ -4,6 +4,7 @@ import { join, resolve } from "path";
 export const AI_KIT_ROOT = resolve(import.meta.dir, "..");
 export const SKILLS_DIR = join(AI_KIT_ROOT, "skills");
 export const MCPS_DIR = join(AI_KIT_ROOT, "mcps");
+export const SERVERS_DIR = join(AI_KIT_ROOT, "servers");
 
 export interface SkillSource {
   from: string;
@@ -28,6 +29,7 @@ export interface McpConfig {
     env?: Record<string, string>;
   };
   path: string;
+  isLocal?: boolean;
 }
 
 export function parseFrontmatter(content: string): { data: Record<string, string>; body: string } {
@@ -92,6 +94,41 @@ export function loadMcpsFrom(dir: string): McpConfig[] {
     });
 }
 
+export function loadServersFrom(dir: string): McpConfig[] {
+  if (!existsSync(dir)) return [];
+
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => {
+      const entryPath = join(dir, d.name, "index.ts");
+      if (!existsSync(entryPath)) return null;
+
+      const metaPath = join(dir, d.name, "server.json");
+      const meta = existsSync(metaPath)
+        ? JSON.parse(readFileSync(metaPath, "utf-8"))
+        : {};
+
+      const config: McpConfig["config"] = {
+        command: "bun",
+        args: ["run", entryPath],
+      };
+      if (meta.env) config.env = meta.env;
+
+      return {
+        name: d.name,
+        description: meta.description || "",
+        config,
+        path: entryPath,
+        isLocal: true,
+      };
+    })
+    .filter((s): s is McpConfig => s !== null);
+}
+
+export function loadServers(): McpConfig[] {
+  return loadServersFrom(SERVERS_DIR);
+}
+
 export function loadMcps(): McpConfig[] {
-  return loadMcpsFrom(MCPS_DIR);
+  return [...loadMcpsFrom(MCPS_DIR), ...loadServersFrom(SERVERS_DIR)];
 }
