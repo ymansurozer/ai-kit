@@ -6,7 +6,8 @@ export const SKILLS_DIR = join(AI_KIT_ROOT, "skills");
 export const MCPS_DIR = join(AI_KIT_ROOT, "mcps");
 
 export interface SkillSource {
-  url: string;
+  from: string;
+  skill: string;
   fetchedAt: string;
 }
 

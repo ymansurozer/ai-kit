@@ -1,15 +1,16 @@
 import { existsSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { SKILLS_DIR, MCPS_DIR } from "./config";
+import { fetchSkill } from "./fetch-skill";
 import { log } from "./log";
 
 export interface AddOptions {
   from?: string;
 }
 
-export async function add(type: string, name: string, options: AddOptions = {}): Promise<void> {
+export function add(type: string, name: string, options: AddOptions = {}): void {
   if (type === "skill") {
-    await addSkill(name, options);
+    addSkill(name, options);
   } else if (type === "mcp") {
     addMcp(name);
   } else {
@@ -18,34 +19,7 @@ export async function add(type: string, name: string, options: AddOptions = {}):
   }
 }
 
-function normalizeGitHubUrl(url: string): string {
-  // Already a raw URL
-  if (url.includes("raw.githubusercontent.com")) return url;
-
-  // GitHub blob URL → raw
-  // https://github.com/owner/repo/blob/branch/path/SKILL.md
-  const blobMatch = url.match(
-    /^https:\/\/github\.com\/([^/]+\/[^/]+)\/blob\/(.+)$/,
-  );
-  if (blobMatch) {
-    return `https://raw.githubusercontent.com/${blobMatch[1]}/${blobMatch[2]}`;
-  }
-
-  // GitHub tree URL (directory) → raw + /SKILL.md
-  // https://github.com/owner/repo/tree/branch/path/to/skill
-  const treeMatch = url.match(
-    /^https:\/\/github\.com\/([^/]+\/[^/]+)\/tree\/(.+)$/,
-  );
-  if (treeMatch) {
-    const path = treeMatch[2].replace(/\/$/, "");
-    return `https://raw.githubusercontent.com/${treeMatch[1]}/${path}/SKILL.md`;
-  }
-
-  // Not a recognized GitHub URL — return as-is
-  return url;
-}
-
-async function addSkill(name: string, options: AddOptions): Promise<void> {
+function addSkill(name: string, options: AddOptions): void {
   const dir = join(SKILLS_DIR, name);
   const filePath = join(dir, "SKILL.md");
 
@@ -54,32 +28,13 @@ async function addSkill(name: string, options: AddOptions): Promise<void> {
     process.exit(1);
   }
 
-  mkdirSync(dir, { recursive: true });
-
   if (options.from) {
-    const rawUrl = normalizeGitHubUrl(options.from);
-    log.info(`Fetching from ${rawUrl}`);
-
-    const response = await fetch(rawUrl);
-    if (!response.ok) {
-      log.error(`Failed to fetch: ${response.status} ${response.statusText}`);
-      process.exit(1);
-    }
-
-    const content = await response.text();
-    writeFileSync(filePath, content);
-    writeFileSync(
-      join(dir, "source.json"),
-      JSON.stringify(
-        { url: rawUrl, fetchedAt: new Date().toISOString() },
-        null,
-        2,
-      ) + "\n",
-    );
-
+    const ok = fetchSkill(name, options.from);
+    if (!ok) process.exit(1);
     log.success(`Fetched skill: skills/${name}/SKILL.md`);
-    log.dim(`  Source: ${rawUrl}`);
+    log.dim(`  Source: ${options.from}`);
   } else {
+    mkdirSync(dir, { recursive: true });
     writeFileSync(
       filePath,
       `---

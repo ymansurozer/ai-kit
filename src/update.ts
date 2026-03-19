@@ -1,10 +1,10 @@
-import { existsSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-import { loadSkills, SKILLS_DIR } from "./config";
+import { loadSkills } from "./config";
+import { fetchSkill } from "./fetch-skill";
 import { log } from "./log";
 
-export async function update(name?: string): Promise<void> {
+export function update(name?: string): void {
   const skills = loadSkills();
+
   let sourced;
   if (name) {
     const skill = skills.find((s) => s.name === name);
@@ -32,29 +32,13 @@ export async function update(name?: string): Promise<void> {
   for (const skill of sourced) {
     if (!skill.source) continue;
 
-    log.info(`Fetching ${skill.name} from ${skill.source.url}`);
-
-    const response = await fetch(skill.source.url);
-    if (!response.ok) {
-      log.error(
-        `  Failed: ${response.status} ${response.statusText} — skipping`,
-      );
-      continue;
+    const ok = fetchSkill(skill.name, skill.source.from);
+    if (ok) {
+      log.success(`Updated ${skill.name}`);
+      updated++;
+    } else {
+      log.error(`  Failed to update ${skill.name} — skipping`);
     }
-
-    const content = await response.text();
-    writeFileSync(skill.path, content);
-    writeFileSync(
-      join(SKILLS_DIR, skill.name, "source.json"),
-      JSON.stringify(
-        { url: skill.source.url, fetchedAt: new Date().toISOString() },
-        null,
-        2,
-      ) + "\n",
-    );
-
-    log.success(`Updated ${skill.name}`);
-    updated++;
   }
 
   log.info(`Updated ${updated}/${sourced.length} sourced skill(s)`);
