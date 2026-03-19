@@ -40,14 +40,14 @@ ai-kit sync
 ai-kit add skill my-skill
 ai-kit add mcp my-server
 
-# Add a skill from an external source
-ai-kit add skill frontend-design --from https://github.com/org/repo/tree/main/skills/frontend-design
+# Add a skill from the skills.sh ecosystem
+ai-kit add skill web-design-guidelines --from vercel-labs/agent-skills
 
 # Update all sourced skills from their origin
 ai-kit update
 
 # Update a specific sourced skill
-ai-kit update frontend-design
+ai-kit update web-design-guidelines
 ```
 
 ## Where things go
@@ -90,17 +90,17 @@ Or scaffold one with `ai-kit add skill code-review`.
 
 ### External skills
 
-Some skills come from other people's repos. Add them with `--from`:
+Some skills come from other people's repos. Add them with `--from` using any source that [Vercel's skills CLI](https://github.com/vercel-labs/skills) supports — GitHub shorthand, full URLs, etc:
 
 ```bash
-ai-kit add skill frontend-design --from https://github.com/anthropics/skills/tree/main/frontend-design
+ai-kit add skill web-design-guidelines --from vercel-labs/agent-skills
 ```
 
-This fetches the `SKILL.md` and saves a `source.json` alongside it that records the origin URL. The `--from` flag accepts GitHub blob/tree URLs or raw URLs — they're all normalized automatically.
-
-Run `ai-kit update` to re-fetch all sourced skills, or `ai-kit update <name>` for a specific one. Skills you create yourself (without `--from`) are unaffected.
+Under the hood this runs `bunx skills add` to fetch the skill, then saves a `source.json` alongside the `SKILL.md` that records the origin. Run `ai-kit update` to re-fetch all sourced skills, or `ai-kit update <name>` for a specific one. Skills you create yourself (without `--from`) are unaffected.
 
 `ai-kit list` marks external skills with `(sourced)`.
+
+Browse available skills at [skills.sh](https://skills.sh).
 
 ## Adding MCPs
 
