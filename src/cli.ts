@@ -4,7 +4,7 @@ import { install } from "./install";
 import { list } from "./list";
 import { sync } from "./sync";
 import { add } from "./add";
-import { update } from "./update";
+import { update, detach } from "./update";
 import { log } from "./log";
 
 const args = process.argv.slice(2);
@@ -40,6 +40,7 @@ function showHelp(): void {
     ai-kit add mcp <name>       Scaffold a new MCP config
     ai-kit add server <name>    Scaffold a local MCP server (FastMCP)
     ai-kit update [name]        Update third-party skills from origin
+    ai-kit detach <name>        Detach a skill from its upstream source
 
   Targets:
     claude, codex, pi, opencode
@@ -114,6 +115,16 @@ switch (command) {
 
   case "update": {
     update(args[1]);
+    break;
+  }
+
+  case "detach": {
+    const name = args[1];
+    if (!name) {
+      log.error("Usage: ai-kit detach <name>");
+      process.exit(1);
+    }
+    detach(name);
     break;
   }
 

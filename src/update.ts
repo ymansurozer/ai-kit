@@ -1,4 +1,6 @@
-import { loadSkills } from "./config";
+import { unlinkSync } from "fs";
+import { join, dirname } from "path";
+import { loadSkills, loadSkillsFrom } from "./config";
 import { fetchSkill } from "./fetch-skill";
 import { log } from "./log";
 
@@ -42,4 +44,23 @@ export function update(name?: string): void {
   }
 
   log.info(`Updated ${updated}/${sourced.length} third-party skill(s)`);
+}
+
+export function detach(name: string, skillsDir?: string): void {
+  const skills = skillsDir ? loadSkillsFrom(skillsDir) : loadSkills();
+  const skill = skills.find((s) => s.name === name);
+
+  if (!skill) {
+    log.error(`Skill not found: ${name}`);
+    process.exit(1);
+  }
+
+  if (!skill.source) {
+    log.error(`Skill "${name}" is already local — nothing to detach`);
+    process.exit(1);
+  }
+
+  const sourcePath = join(dirname(skill.path), "source.json");
+  unlinkSync(sourcePath);
+  log.success(`Detached "${name}" — it is now a local skill`);
 }
