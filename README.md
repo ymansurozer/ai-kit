@@ -197,6 +197,7 @@ You can mix both — install some skills globally and others per-repo. `ai-kit s
 | `ai-kit add server <name>` | Scaffold a local MCP server (FastMCP) |
 | `ai-kit update` | Re-fetch all third-party skills |
 | `ai-kit update <name>` | Re-fetch a specific third-party skill |
+| `ai-kit detach <name>` | Detach a skill from its upstream source |
 | `ai-kit sync` | Re-install to all previously tracked targets |
 
 ## Third-party skills
@@ -215,9 +216,12 @@ ai-kit update frontend-design
 
 # Third-party skills are marked in the list
 ai-kit list
+
+# Customized a skill? Detach it so update won't overwrite your changes
+ai-kit detach frontend-design
 ```
 
-Under the hood this uses [Vercel's skills CLI](https://github.com/vercel-labs/skills) to fetch the skill. A `source.json` is saved alongside the `SKILL.md` to record the origin.
+Under the hood this uses [Vercel's skills CLI](https://github.com/vercel-labs/skills) to fetch the skill. A `source.json` is saved alongside the `SKILL.md` to record the origin. Running `ai-kit detach <name>` removes that `source.json`, converting it to a local skill that `update` will skip.
 
 Browse available third-party skills at **[skills.sh](https://skills.sh)**.
 

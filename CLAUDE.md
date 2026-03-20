@@ -9,7 +9,7 @@ ai-kit is a Bun CLI that centralizes AI skills (Agent Skills standard `SKILL.md`
 ## Commands
 
 ```bash
-bun test              # run all tests (55 tests across 5 files)
+bun test              # run all tests
 bun run typecheck     # tsc --noEmit
 bun link              # link ai-kit as global CLI command
 ```
