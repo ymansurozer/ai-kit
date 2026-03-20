@@ -3,6 +3,7 @@ import { saveInstallation } from "./state";
 import { installClaude } from "./targets/claude";
 import { installCodex } from "./targets/codex";
 import { installPi } from "./targets/pi";
+import { installOpencode } from "./targets/opencode";
 import { log } from "./log";
 
 const TARGETS: Record<
@@ -12,6 +13,7 @@ const TARGETS: Record<
   claude: installClaude,
   codex: installCodex,
   pi: installPi,
+  opencode: installOpencode,
 };
 
 export interface InstallOptions {
