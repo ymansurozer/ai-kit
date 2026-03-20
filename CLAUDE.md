@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-ai-kit is a Bun CLI that centralizes AI skills (Agent Skills standard `SKILL.md`) and MCP server configs in a single repo, then installs them to Claude Code, Codex, or Pi — per-repo or globally.
+ai-kit is a Bun CLI that centralizes AI skills (Agent Skills standard `SKILL.md`) and MCP server configs in a single repo, then installs them to Claude Code, Codex, Pi, or OpenCode — per-repo or globally.
 
 ## Commands
 
@@ -28,6 +28,7 @@ bun link              # link ai-kit as global CLI command
 - Each target exports `install<Target>(skills, mcps, global, cwd)`
 - `claude.ts` — per-repo: `.agents/skills/` + `.mcp.json`; global: `~/.claude/commands/` (frontmatter name stripped) + `~/.claude/settings.json`
 - `codex.ts` — per-repo: `.agents/skills/` + `.codex/config.toml`; global: `~/.agents/skills/` + `~/.codex/config.toml`
+- `opencode.ts` — per-repo: `.opencode/skills/` + `opencode.json`; global: `~/.config/opencode/skills/` + `~/.config/opencode/opencode.json`
 - `pi.ts` — skills only, no MCP support
 - Targets receive McpConfig objects and write `mcp.config` as-is — no path transformation needed
 

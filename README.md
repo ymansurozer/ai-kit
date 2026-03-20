@@ -9,7 +9,7 @@
 [![Agent Skills](https://img.shields.io/badge/format-Agent%20Skills-8b5cf6.svg)](https://github.com/anthropics/agent-skills)
 [![FastMCP](https://img.shields.io/badge/servers-FastMCP-ff6b6b.svg)](https://github.com/punkpeye/fastmcp)
 
-Centralize your [Agent Skills](https://github.com/anthropics/agent-skills) and [MCP](https://modelcontextprotocol.io/) server configs in a single git repo. Install them to **Claude Code**, **Codex**, or **Pi** — per-repo or globally — with one command.
+Centralize your [Agent Skills](https://github.com/anthropics/agent-skills) and [MCP](https://modelcontextprotocol.io/) server configs in a single git repo. Install them to **Claude Code**, **Codex**, **Pi**, or **OpenCode** — per-repo or globally — with one command.
 
 </div>
 
@@ -53,9 +53,9 @@ One `ai-kit install claude` and everything lands in the right place.
          │  per-repo   │               │   global    │
          └──────┬──────┘               └──────┬──────┘
                 │                             │
-       ┌────────┼────────┐           ┌────────┼────────┐
-       ▼        ▼        ▼           ▼        ▼        ▼
-    Claude    Codex     Pi        Claude    Codex     Pi
+       ┌────────┼────────┐        ┌──────┬────┴────┬──────┐
+       ▼        ▼        ▼        ▼      ▼         ▼      ▼
+    Repo A   Repo B   Repo C   Claude  Codex   OpenCode   Pi
 ```
 
 Skills use the [Agent Skills](https://github.com/anthropics/agent-skills) standard — a `SKILL.md` format natively supported by Claude Code, Codex, Pi, Cursor, Gemini CLI, and [30+ other tools](https://skills.sh).
@@ -144,9 +144,10 @@ ai-kit install claude
 # Install globally
 ai-kit install claude --global
 
-# Install to Codex or Pi
+# Install to Codex, Pi, or OpenCode
 ai-kit install codex
 ai-kit install pi
+ai-kit install opencode
 
 # Cherry-pick what you need
 ai-kit install claude --skills writing-style,humanizer --mcps playwright
@@ -168,6 +169,7 @@ Both skills and MCPs (including local servers) support two install scopes:
 | Claude | `.agents/skills/<name>/SKILL.md` | `.mcp.json` |
 | Codex | `.agents/skills/<name>/SKILL.md` | `.codex/config.toml` |
 | Pi | `.agents/skills/<name>/SKILL.md` | — |
+| OpenCode | `.opencode/skills/<name>/SKILL.md` | `opencode.json` |
 
 ### Global (`--global`)
 
@@ -176,6 +178,7 @@ Both skills and MCPs (including local servers) support two install scopes:
 | Claude | `~/.claude/commands/<name>.md` | `~/.claude/settings.json` |
 | Codex | `~/.agents/skills/<name>/SKILL.md` | `~/.codex/config.toml` |
 | Pi | `~/.pi/agent/skills/<name>/SKILL.md` | — |
+| OpenCode | `~/.config/opencode/skills/<name>/SKILL.md` | `~/.config/opencode/opencode.json` |
 
 You can mix both — install some skills globally and others per-repo. `ai-kit sync` re-installs to all tracked locations.
 

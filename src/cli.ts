@@ -42,7 +42,7 @@ function showHelp(): void {
     ai-kit update [name]        Update third-party skills from origin
 
   Targets:
-    claude, codex, pi
+    claude, codex, pi, opencode
 
   Flags:
     --global                    Install globally instead of per-repo
