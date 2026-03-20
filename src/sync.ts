@@ -28,6 +28,8 @@ export function sync(): void {
     install(inst.target, {
       global: inst.global,
       cwd: inst.path,
+      skills: inst.skills,
+      mcps: inst.mcps,
     });
   }
 

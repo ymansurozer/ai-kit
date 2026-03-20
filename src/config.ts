@@ -33,8 +33,9 @@ export interface McpConfig {
 }
 
 export function parseFrontmatter(content: string): { data: Record<string, string>; body: string } {
-  const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!match) return { data: {}, body: content };
+  const normalized = content.replace(/\r\n/g, "\n");
+  const match = normalized.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  if (!match) return { data: {}, body: normalized };
 
   const data: Record<string, string> = {};
   for (const line of match[1].split("\n")) {
@@ -85,6 +86,9 @@ export function loadMcpsFrom(dir: string): McpConfig[] {
     .map((f) => {
       const mcpPath = join(dir, f);
       const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
+      if (!content.config || typeof content.config.command !== "string") {
+        throw new Error(`Invalid MCP config in ${f}: missing "config.command"`);
+      }
       return {
         name: f.replace(/\.json$/, ""),
         description: content.description || "",

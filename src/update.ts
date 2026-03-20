@@ -11,12 +11,10 @@ export function update(name?: string): void {
   if (name) {
     const skill = skills.find((s) => s.name === name);
     if (!skill) {
-      log.error(`Skill not found: ${name}`);
-      process.exit(1);
+      throw new Error(`Skill not found: ${name}`);
     }
     if (!skill.source) {
-      log.error(`Skill "${name}" is not a third-party skill — nothing to update`);
-      process.exit(1);
+      throw new Error(`Skill "${name}" is not a third-party skill — nothing to update`);
     }
     sourced = [skill];
   } else {
@@ -51,13 +49,11 @@ export function detach(name: string, skillsDir?: string): void {
   const skill = skills.find((s) => s.name === name);
 
   if (!skill) {
-    log.error(`Skill not found: ${name}`);
-    process.exit(1);
+    throw new Error(`Skill not found: ${name}`);
   }
 
   if (!skill.source) {
-    log.error(`Skill "${name}" is already local — nothing to detach`);
-    process.exit(1);
+    throw new Error(`Skill "${name}" is already local — nothing to detach`);
   }
 
   const sourcePath = join(dirname(skill.path), "source.json");

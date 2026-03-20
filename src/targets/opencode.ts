@@ -1,7 +1,8 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, cpSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import type { Skill, McpConfig } from "../config";
+import { installSkillsToDir } from "./shared";
 import { log } from "../log";
 
 export function installOpencode(
@@ -11,29 +12,11 @@ export function installOpencode(
   cwd: string,
 ): void {
   if (global) {
-    installSkillsGlobal(skills);
+    installSkillsToDir(skills, join(homedir(), ".config", "opencode", "skills"), "~/.config/opencode/skills");
     installMcpsGlobal(mcps);
   } else {
-    installSkillsLocal(skills, cwd);
+    installSkillsToDir(skills, join(cwd, ".opencode", "skills"), ".opencode/skills");
     installMcpsLocal(mcps, cwd);
-  }
-}
-
-function installSkillsLocal(skills: Skill[], cwd: string): void {
-  for (const skill of skills) {
-    const dir = join(cwd, ".opencode", "skills", skill.name);
-    mkdirSync(dir, { recursive: true });
-    cpSync(skill.path, join(dir, "SKILL.md"));
-    log.success(`Installed skill ${skill.name} → .opencode/skills/${skill.name}/SKILL.md`);
-  }
-}
-
-function installSkillsGlobal(skills: Skill[]): void {
-  for (const skill of skills) {
-    const dir = join(homedir(), ".config", "opencode", "skills", skill.name);
-    mkdirSync(dir, { recursive: true });
-    cpSync(skill.path, join(dir, "SKILL.md"));
-    log.success(`Installed skill ${skill.name} → ~/.config/opencode/skills/${skill.name}/SKILL.md`);
   }
 }
 

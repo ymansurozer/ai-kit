@@ -1,7 +1,8 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, cpSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { homedir } from "os";
 import type { Skill, McpConfig } from "../config";
+import { installSkillsToDir } from "./shared";
 import { log } from "../log";
 
 export function installCodex(
@@ -11,29 +12,11 @@ export function installCodex(
   cwd: string,
 ): void {
   if (global) {
-    installSkillsGlobal(skills);
+    installSkillsToDir(skills, join(homedir(), ".agents", "skills"), "~/.agents/skills");
     installMcpsGlobal(mcps);
   } else {
-    installSkillsLocal(skills, cwd);
+    installSkillsToDir(skills, join(cwd, ".agents", "skills"), ".agents/skills");
     installMcpsLocal(mcps, cwd);
-  }
-}
-
-function installSkillsLocal(skills: Skill[], cwd: string): void {
-  for (const skill of skills) {
-    const dir = join(cwd, ".agents", "skills", skill.name);
-    mkdirSync(dir, { recursive: true });
-    cpSync(skill.path, join(dir, "SKILL.md"));
-    log.success(`Installed skill ${skill.name} → .agents/skills/${skill.name}/SKILL.md`);
-  }
-}
-
-function installSkillsGlobal(skills: Skill[]): void {
-  for (const skill of skills) {
-    const dir = join(homedir(), ".agents", "skills", skill.name);
-    mkdirSync(dir, { recursive: true });
-    cpSync(skill.path, join(dir, "SKILL.md"));
-    log.success(`Installed skill ${skill.name} → ~/.agents/skills/${skill.name}/SKILL.md`);
   }
 }
 

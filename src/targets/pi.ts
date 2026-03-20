@@ -1,7 +1,7 @@
-import { mkdirSync, cpSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import type { Skill, McpConfig } from "../config";
+import { installSkillsToDir } from "./shared";
 import { log } from "../log";
 
 export function installPi(
@@ -11,32 +11,12 @@ export function installPi(
   cwd: string,
 ): void {
   if (global) {
-    installSkillsGlobal(skills);
+    installSkillsToDir(skills, join(homedir(), ".pi", "agent", "skills"), "~/.pi/agent/skills");
   } else {
-    installSkillsLocal(skills, cwd);
+    installSkillsToDir(skills, join(cwd, ".agents", "skills"), ".agents/skills");
   }
 
   if (mcps.length > 0) {
     log.warn("Pi does not support MCPs — skipping MCP installation");
-  }
-}
-
-function installSkillsLocal(skills: Skill[], cwd: string): void {
-  for (const skill of skills) {
-    const dir = join(cwd, ".agents", "skills", skill.name);
-    mkdirSync(dir, { recursive: true });
-    cpSync(skill.path, join(dir, "SKILL.md"));
-    log.success(`Installed skill ${skill.name} → .agents/skills/${skill.name}/SKILL.md`);
-  }
-}
-
-function installSkillsGlobal(skills: Skill[]): void {
-  for (const skill of skills) {
-    const dir = join(homedir(), ".pi", "agent", "skills", skill.name);
-    mkdirSync(dir, { recursive: true });
-    cpSync(skill.path, join(dir, "SKILL.md"));
-    log.success(
-      `Installed skill ${skill.name} → ~/.pi/agent/skills/${skill.name}/SKILL.md`,
-    );
   }
 }
