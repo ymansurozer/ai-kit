@@ -58,6 +58,16 @@ Body`;
     const output = convertSkillToCommand(input);
     expect(output).toBe(input);
   });
+
+  test("handles CRLF frontmatter without keeping the name field", () => {
+    const input = "---\r\nname: windows-skill\r\ndescription: Works on CRLF\r\n---\r\n# Body";
+
+    const output = convertSkillToCommand(input);
+    expect(output).toBe(`---
+description: Works on CRLF
+---
+# Body`);
+  });
 });
 
 // --- installClaude per-repo (temp dir) ---

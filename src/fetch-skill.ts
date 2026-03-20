@@ -78,11 +78,13 @@ function findSkillMd(baseDir: string, name: string): string | null {
   return findFile(baseDir, "SKILL.md");
 }
 
+const SKIP_DIRS = new Set(["node_modules", ".git"]);
+
 function findFile(dir: string, filename: string): string | null {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isFile() && entry.name === filename) return full;
-    if (entry.isDirectory()) {
+    if (entry.isDirectory() && !SKIP_DIRS.has(entry.name)) {
       const found = findFile(full, filename);
       if (found) return found;
     }

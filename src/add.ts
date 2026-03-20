@@ -16,8 +16,7 @@ export function add(type: string, name: string, options: AddOptions = {}): void 
   } else if (type === "server") {
     addServer(name);
   } else {
-    log.error(`Unknown type: ${type}. Use "skill", "mcp", or "server".`);
-    process.exit(1);
+    throw new Error(`Unknown type: ${type}. Use "skill", "mcp", or "server".`);
   }
 }
 
@@ -26,13 +25,12 @@ function addSkill(name: string, options: AddOptions): void {
   const filePath = join(dir, "SKILL.md");
 
   if (existsSync(filePath)) {
-    log.error(`Skill already exists: ${name}`);
-    process.exit(1);
+    throw new Error(`Skill already exists: ${name}`);
   }
 
   if (options.from) {
     const ok = fetchSkill(name, options.from);
-    if (!ok) process.exit(1);
+    if (!ok) throw new Error(`Failed to fetch skill "${name}" from ${options.from}`);
     log.success(`Fetched skill: skills/${name}/SKILL.md`);
     log.dim(`  Source: ${options.from}`);
   } else {
@@ -59,8 +57,7 @@ function addMcp(name: string): void {
   const filePath = join(MCPS_DIR, `${name}.json`);
 
   if (existsSync(filePath)) {
-    log.error(`MCP already exists: ${name}`);
-    process.exit(1);
+    throw new Error(`MCP already exists: ${name}`);
   }
 
   mkdirSync(MCPS_DIR, { recursive: true });
@@ -86,8 +83,7 @@ function addServer(name: string): void {
   const dir = join(SERVERS_DIR, name);
 
   if (existsSync(dir)) {
-    log.error(`Server already exists: ${name}`);
-    process.exit(1);
+    throw new Error(`Server already exists: ${name}`);
   }
 
   mkdirSync(dir, { recursive: true });

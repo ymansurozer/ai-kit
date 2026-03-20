@@ -31,11 +31,15 @@ describe("parseFlags", () => {
 
   test("ignores non-flag arguments", () => {
     expect(parseFlags(["claude", "--global", "extra"])).toEqual({
-      global: "extra",
+      global: true,
     });
   });
 
   test("handles flag with value containing special characters", () => {
     expect(parseFlags(["--from", "org/repo"])).toEqual({ from: "org/repo" });
+  });
+
+  test("boolean flags do not consume following positional arguments", () => {
+    expect(parseFlags(["--global", "claude"])).toEqual({ global: true });
   });
 });

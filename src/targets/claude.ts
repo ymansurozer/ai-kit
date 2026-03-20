@@ -1,8 +1,9 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, cpSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import type { Skill, McpConfig } from "../config";
 import { parseFrontmatter } from "../config";
+import { installSkillsToDir } from "./shared";
 import { log } from "../log";
 
 export function installClaude(
@@ -15,25 +16,23 @@ export function installClaude(
     installSkillsGlobal(skills);
     installMcpsGlobal(mcps);
   } else {
-    installSkillsLocal(skills, cwd);
+    installSkillsToDir(skills, join(cwd, ".agents", "skills"), ".agents/skills");
     installMcpsLocal(mcps, cwd);
   }
 }
 
-function installSkillsLocal(skills: Skill[], cwd: string): void {
-  for (const skill of skills) {
-    const dir = join(cwd, ".agents", "skills", skill.name);
-    mkdirSync(dir, { recursive: true });
-    cpSync(skill.path, join(dir, "SKILL.md"));
-    log.success(`Installed skill ${skill.name} → .agents/skills/${skill.name}/SKILL.md`);
-  }
-}
-
 export function convertSkillToCommand(content: string): string {
-  const { data, body } = parseFrontmatter(content);
+  const normalized = content.replace(/\r\n/g, "\n");
+  const { data, body } = parseFrontmatter(normalized);
   const entries = Object.entries(data).filter(([key]) => key !== "name");
-  const newFrontmatter = entries.map(([k, v]) => `${k}: ${v}`).join("\n");
-  return newFrontmatter ? `---\n${newFrontmatter}\n---\n${body}` : body;
+  if (entries.length === 0) return body;
+  const lines = normalized.split("\n");
+  const endIdx = lines.indexOf("---", 1);
+  const kept = lines.slice(1, endIdx).filter((l) => {
+    const key = l.slice(0, l.indexOf(":")).trim();
+    return key !== "name";
+  });
+  return `---\n${kept.join("\n")}\n---\n${body}`;
 }
 
 function installSkillsGlobal(skills: Skill[]): void {

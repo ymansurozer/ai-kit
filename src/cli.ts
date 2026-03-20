@@ -9,6 +9,7 @@ import { log } from "./log";
 
 const args = process.argv.slice(2);
 const command = args[0];
+const VALUE_FLAGS = new Set(["skills", "mcps", "from"]);
 
 export function parseFlags(argv: string[]): Record<string, string | boolean> {
   const flags: Record<string, string | boolean> = {};
@@ -16,7 +17,7 @@ export function parseFlags(argv: string[]): Record<string, string | boolean> {
     if (argv[i].startsWith("--")) {
       const key = argv[i].slice(2);
       const next = argv[i + 1];
-      if (next && !next.startsWith("--")) {
+      if (VALUE_FLAGS.has(key) && next && !next.startsWith("--")) {
         flags[key] = next;
         i++;
       } else {
@@ -69,70 +70,75 @@ if (!command || command === "--help" || command === "-h") {
   process.exit(0);
 }
 
-switch (command) {
-  case "install": {
-    const target = args[1];
-    if (!target) {
-      log.error("Missing target. Usage: ai-kit install <target>");
+try {
+  switch (command) {
+    case "install": {
+      const target = args[1];
+      if (!target) {
+        log.error("Missing target. Usage: ai-kit install <target>");
+        process.exit(1);
+      }
+      const flags = parseFlags(args.slice(2));
+      install(target, {
+        global: flags.global === true,
+        skills:
+          typeof flags.skills === "string"
+            ? flags.skills.split(",")
+            : undefined,
+        mcps:
+          typeof flags.mcps === "string" ? flags.mcps.split(",") : undefined,
+      });
+      break;
+    }
+
+    case "list": {
+      list();
+      break;
+    }
+
+    case "sync": {
+      sync();
+      break;
+    }
+
+    case "add": {
+      const type = args[1];
+      const name = args[2];
+      if (!type || !name) {
+        log.error("Usage: ai-kit add <skill|mcp|server> <name>");
+        process.exit(1);
+      }
+      const addFlags = parseFlags(args.slice(3));
+      add(type, name, {
+        from: typeof addFlags.from === "string" ? addFlags.from : undefined,
+      });
+      break;
+    }
+
+    case "update": {
+      update(args[1]);
+      break;
+    }
+
+    case "detach": {
+      const name = args[1];
+      if (!name) {
+        log.error("Usage: ai-kit detach <name>");
+        process.exit(1);
+      }
+      detach(name);
+      break;
+    }
+
+    default: {
+      log.error(`Unknown command: ${command}`);
+      showHelp();
       process.exit(1);
     }
-    const flags = parseFlags(args.slice(2));
-    install(target, {
-      global: flags.global === true,
-      skills:
-        typeof flags.skills === "string"
-          ? flags.skills.split(",")
-          : undefined,
-      mcps:
-        typeof flags.mcps === "string" ? flags.mcps.split(",") : undefined,
-    });
-    break;
   }
-
-  case "list": {
-    list();
-    break;
-  }
-
-  case "sync": {
-    sync();
-    break;
-  }
-
-  case "add": {
-    const type = args[1];
-    const name = args[2];
-    if (!type || !name) {
-      log.error("Usage: ai-kit add <skill|mcp|server> <name>");
-      process.exit(1);
-    }
-    const addFlags = parseFlags(args.slice(3));
-    add(type, name, {
-      from: typeof addFlags.from === "string" ? addFlags.from : undefined,
-    });
-    break;
-  }
-
-  case "update": {
-    update(args[1]);
-    break;
-  }
-
-  case "detach": {
-    const name = args[1];
-    if (!name) {
-      log.error("Usage: ai-kit detach <name>");
-      process.exit(1);
-    }
-    detach(name);
-    break;
-  }
-
-  default: {
-    log.error(`Unknown command: ${command}`);
-    showHelp();
-    process.exit(1);
-  }
+} catch (err) {
+  log.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
 }
 
 } // import.meta.main
