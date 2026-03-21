@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, mkdirSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import {
@@ -250,6 +250,18 @@ command = "echo"`;
   test("handles empty content", () => {
     expect(removeTomlSection("", "mcp_servers.test")).toBe("");
   });
+
+  test("removes sections whose headers include inline comments", () => {
+    const content = `[mcp_servers.playwright] # local note
+command = "npx"
+
+[other]
+key = "value"`;
+
+    const result = removeTomlSection(content, "mcp_servers.playwright");
+    expect(result).not.toContain("mcp_servers.playwright");
+    expect(result).toContain("[other]");
+  });
 });
 
 // --- installCodex per-repo (temp dir) ---
@@ -301,8 +313,7 @@ describe("installCodex per-repo", () => {
 
   test("merges MCPs into existing TOML without clobbering", () => {
     const configDir = join(tmpDir, ".codex");
-    const { mkdirSync: mk } = require("fs");
-    mk(configDir, { recursive: true });
+    mkdirSync(configDir, { recursive: true });
     writeFileSync(
       join(configDir, "config.toml"),
       '[settings]\nmodel = "gpt-4"\n',
@@ -326,6 +337,27 @@ describe("installCodex per-repo", () => {
     expect(matches).toHaveLength(1);
   });
 
+  test("replaces sections whose headers include inline comments", () => {
+    const configDir = join(tmpDir, ".codex");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.toml"),
+      `[mcp_servers.playwright] # local note
+command = "old"
+
+[features]
+multi_agent = true
+`,
+    );
+
+    installCodex([], [makeMcp("playwright")], false, tmpDir);
+    const toml = readFileSync(join(configDir, "config.toml"), "utf-8");
+    const matches = toml.match(/\[mcp_servers\.playwright\]/g);
+    expect(matches).toHaveLength(1);
+    expect(toml).toContain('command = "npx"');
+    expect(toml).not.toContain('command = "old"');
+  });
+
   test("writes bearer token indirection for remote auth without embedding secrets", () => {
     const mcp: McpConfig = {
       name: "analytics",
@@ -343,5 +375,79 @@ describe("installCodex per-repo", () => {
     const toml = readFileSync(join(tmpDir, ".codex", "config.toml"), "utf-8");
     expect(toml).toContain('bearer_token_env_var = "ANALYTICS_API_TOKEN"');
     expect(toml).not.toContain("Bearer ${ANALYTICS_API_TOKEN}");
+  });
+
+  test("preserves unrelated keys inside an existing MCP section", () => {
+    const configDir = join(tmpDir, ".codex");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.toml"),
+      `[mcp_servers.playwright]
+enabled = false
+timeout = 30
+command = "old"
+args = ["--old"]
+
+[mcp_servers.playwright.custom]
+note = "keep"
+
+[features]
+multi_agent = true
+`,
+    );
+
+    installCodex([], [makeMcp("playwright")], false, tmpDir);
+    const toml = readFileSync(join(tmpDir, ".codex", "config.toml"), "utf-8");
+    expect(toml).toContain("[features]");
+    expect(toml).toContain("multi_agent = true");
+    expect(toml).toContain("[mcp_servers.playwright]");
+    expect(toml).toContain("enabled = false");
+    expect(toml).toContain("timeout = 30");
+    expect(toml).toContain('command = "npx"');
+    expect(toml).toContain('args = ["-y", "@test/playwright"]');
+    expect(toml).toContain("[mcp_servers.playwright.custom]");
+    expect(toml).toContain('note = "keep"');
+    expect(toml).not.toContain('args = ["--old"]');
+  });
+
+  test("replaces owned subsections while preserving unrelated ones", () => {
+    const configDir = join(tmpDir, ".codex");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.toml"),
+      `[mcp_servers.analytics]
+enabled = true
+url = "https://old.example.com"
+
+[mcp_servers.analytics.http_headers]
+Authorization = "old"
+X_OLD = "remove-me"
+
+[mcp_servers.analytics.custom]
+note = "keep"
+`,
+    );
+
+    const mcp: McpConfig = {
+      name: "analytics",
+      description: "",
+      config: {
+        url: "https://mcp.example.com/analytics",
+        headers: {
+          Authorization: "Bearer ${ANALYTICS_API_TOKEN}",
+        },
+      },
+      path: "",
+    };
+
+    installCodex([], [mcp], false, tmpDir);
+    const toml = readFileSync(join(configDir, "config.toml"), "utf-8");
+    expect(toml).toContain('url = "https://mcp.example.com/analytics"');
+    expect(toml).toContain('bearer_token_env_var = "ANALYTICS_API_TOKEN"');
+    expect(toml).toContain("enabled = true");
+    expect(toml).toContain("[mcp_servers.analytics.custom]");
+    expect(toml).toContain('note = "keep"');
+    expect(toml).not.toContain("[mcp_servers.analytics.http_headers]");
+    expect(toml).not.toContain("X_OLD");
   });
 });

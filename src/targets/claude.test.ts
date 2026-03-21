@@ -178,6 +178,92 @@ describe("installClaude per-repo", () => {
     expect(mcpJson.mcpServers["new-one"]).toBeDefined();
   });
 
+  test("preserves unrelated keys inside an existing MCP entry", () => {
+    writeFileSync(
+      join(tmpDir, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          playwright: {
+            command: "old",
+            args: ["--old"],
+            env: {
+              SERVICE_USERNAME: "old-user",
+              LOCAL_ONLY: "keep",
+            },
+            enabled: false,
+          },
+        },
+      }),
+    );
+
+    const mcp: McpConfig = {
+      name: "playwright",
+      description: "",
+      config: {
+        command: "npx",
+        args: ["-y", "@playwright/mcp"],
+        env: {
+          SERVICE_USERNAME: "${SERVICE_USERNAME}",
+        },
+      },
+      path: "",
+    };
+
+    installClaude([], [mcp], false, tmpDir);
+    const mcpJson = JSON.parse(
+      readFileSync(join(tmpDir, ".mcp.json"), "utf-8"),
+    );
+    expect(mcpJson.mcpServers.playwright.command).toBe("npx");
+    expect(mcpJson.mcpServers.playwright.args).toEqual(["-y", "@playwright/mcp"]);
+    expect(mcpJson.mcpServers.playwright.env).toEqual({
+      SERVICE_USERNAME: "${SERVICE_USERNAME}",
+    });
+    expect(mcpJson.mcpServers.playwright.enabled).toBe(false);
+  });
+
+  test("replaces owned nested keys when reinstalling an MCP entry", () => {
+    writeFileSync(
+      join(tmpDir, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          analytics: {
+            headers: {
+              Authorization: "Bearer old-token",
+              X_OLD: "remove-me",
+            },
+            env: {
+              API_KEY: "old-key",
+              LOCAL_ONLY: "remove-me",
+            },
+            enabled: false,
+          },
+        },
+      }),
+    );
+
+    const mcp: McpConfig = {
+      name: "analytics",
+      description: "",
+      config: {
+        url: "https://mcp.example.com/analytics",
+        headers: {
+          Authorization: "Bearer ${ANALYTICS_AUTH_TOKEN}",
+        },
+      },
+      path: "",
+    };
+
+    installClaude([], [mcp], false, tmpDir);
+    const mcpJson = JSON.parse(
+      readFileSync(join(tmpDir, ".mcp.json"), "utf-8"),
+    );
+    expect(mcpJson.mcpServers.analytics.headers).toEqual({
+      Authorization: "Bearer ${ANALYTICS_AUTH_TOKEN}",
+    });
+    expect(mcpJson.mcpServers.analytics.env).toBeUndefined();
+    expect(mcpJson.mcpServers.analytics.enabled).toBe(false);
+  });
+
   test("preserves non-mcpServers keys in .mcp.json", () => {
     writeFileSync(
       join(tmpDir, ".mcp.json"),

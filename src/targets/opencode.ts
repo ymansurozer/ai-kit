@@ -9,6 +9,7 @@ import {
   type HttpMcpTransportConfig,
 } from "../config";
 import { installSkillsToDir } from "./shared";
+import { mergeTargetConfig } from "./merge";
 import { log } from "../log";
 
 export function installOpencode(
@@ -79,7 +80,11 @@ function mergeMcpsJson(
   const servers = existing.mcp as Record<string, unknown>;
 
   for (const mcp of mcps) {
-    servers[mcp.name] = convertMcpConfig(mcp);
+    servers[mcp.name] = mergeTargetConfig(
+      servers[mcp.name],
+      convertMcpConfig(mcp),
+      ["type", "command", "environment", "url", "headers"],
+    );
     log.success(`Installed MCP ${mcp.name} → ${displayPath}`);
   }
 
