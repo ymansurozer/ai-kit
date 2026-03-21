@@ -2,7 +2,16 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { parseFrontmatter, loadSkillsFrom, loadMcpsFrom, loadServersFrom } from "./config";
+import {
+  parseFrontmatter,
+  loadSkillsFrom,
+  loadMcpsFrom,
+  loadServersFrom,
+  extractEnvVar,
+  extractBearerTokenEnvVar,
+  transformEnvVars,
+  containsEnvPlaceholderSyntax,
+} from "./config";
 
 // --- parseFrontmatter (pure) ---
 
@@ -57,6 +66,48 @@ Body here`;
     const { data, body } = parseFrontmatter(content);
     expect(Object.keys(data)).toHaveLength(0);
     expect(body).toBe("Body here");
+  });
+});
+
+// --- env placeholder helpers (pure) ---
+
+describe("env placeholder helpers", () => {
+  test("extracts exact env placeholders", () => {
+    expect(extractEnvVar("${API_KEY}")).toBe("API_KEY");
+    expect(extractEnvVar("prefix-${API_KEY}")).toBeNull();
+  });
+
+  test("extracts bearer token env placeholders", () => {
+    expect(extractBearerTokenEnvVar("Bearer ${SERVICE_API_TOKEN}")).toBe("SERVICE_API_TOKEN");
+    expect(extractBearerTokenEnvVar("${SERVICE_API_TOKEN}")).toBeNull();
+  });
+
+  test("detects placeholder syntax in strings", () => {
+    expect(containsEnvPlaceholderSyntax("prefix-${TOKEN}")).toBe(true);
+    expect(containsEnvPlaceholderSyntax("literal")).toBe(false);
+  });
+
+  test("transforms exact and bearer placeholders recursively", () => {
+    const input = {
+      env: {
+        API_KEY: "${API_KEY}",
+      },
+      headers: {
+        Authorization: "Bearer ${SERVICE_API_TOKEN}",
+      },
+      args: ["--flag", "${VALUE}", "literal"],
+    };
+
+    const result = transformEnvVars(input, (varName) => `{env:${varName}}`);
+    expect(result).toEqual({
+      env: {
+        API_KEY: "{env:API_KEY}",
+      },
+      headers: {
+        Authorization: "Bearer {env:SERVICE_API_TOKEN}",
+      },
+      args: ["--flag", "{env:VALUE}", "literal"],
+    });
   });
 });
 
@@ -168,6 +219,64 @@ describe("loadMcpsFrom", () => {
     expect(mcps[0].name).toBe("playwright");
     expect(mcps[0].description).toBe("Browser automation");
     expect(mcps[0].config.command).toBe("npx");
+  });
+
+  test("loads HTTP MCP configs from JSON files", () => {
+    writeFileSync(
+      join(tmpDir, "docs-search.json"),
+      JSON.stringify({
+        description: "Docs search",
+        config: { url: "https://mcp.example.com/docs" },
+      }),
+    );
+
+    const mcps = loadMcpsFrom(tmpDir);
+    expect(mcps).toHaveLength(1);
+    expect(mcps[0].name).toBe("docs-search");
+    expect(mcps[0].config.url).toBe("https://mcp.example.com/docs");
+  });
+
+  test("loads placeholder-bearing MCP configs without resolving them", () => {
+    writeFileSync(
+      join(tmpDir, "analytics.json"),
+      JSON.stringify({
+        description: "Analytics",
+        config: {
+          url: "https://mcp.example.com/analytics",
+          headers: {
+            Authorization: "Bearer ${ANALYTICS_AUTH_TOKEN}",
+          },
+        },
+      }),
+    );
+
+    const mcps = loadMcpsFrom(tmpDir);
+    expect(mcps).toHaveLength(1);
+    expect((mcps[0].config.headers as Record<string, string>).Authorization).toBe(
+      "Bearer ${ANALYTICS_AUTH_TOKEN}",
+    );
+  });
+
+  test("loads stdio placeholder-bearing MCP configs without resolving them", () => {
+    writeFileSync(
+      join(tmpDir, "search-service.json"),
+      JSON.stringify({
+        description: "Search service",
+        config: {
+          command: "npx",
+          args: ["-y", "example-mcp-server"],
+          env: {
+            SERVICE_USERNAME: "${SERVICE_USERNAME}",
+          },
+        },
+      }),
+    );
+
+    const mcps = loadMcpsFrom(tmpDir);
+    expect(mcps).toHaveLength(1);
+    expect((mcps[0].config.env as Record<string, string>).SERVICE_USERNAME).toBe(
+      "${SERVICE_USERNAME}",
+    );
   });
 
   test("skips non-JSON files", () => {

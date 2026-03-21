@@ -20,17 +20,28 @@ export interface Skill {
   source?: SkillSource;
 }
 
+export type StdioMcpTransportConfig = {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  [key: string]: unknown;
+};
+
+export type HttpMcpTransportConfig = {
+  url: string;
+  [key: string]: unknown;
+};
+
 export interface McpConfig {
   name: string;
   description: string;
-  config: {
-    command: string;
-    args?: string[];
-    env?: Record<string, string>;
-  };
+  config: StdioMcpTransportConfig | HttpMcpTransportConfig;
   path: string;
   isLocal?: boolean;
 }
+
+const ENV_VAR_PATTERN = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
+const BEARER_ENV_VAR_PATTERN = /^Bearer \${([A-Za-z_][A-Za-z0-9_]*)\}$/;
 
 export function parseFrontmatter(content: string): { data: Record<string, string>; body: string } {
   const normalized = content.replace(/\r\n/g, "\n");
@@ -78,6 +89,48 @@ export function loadSkills(): Skill[] {
   return loadSkillsFrom(SKILLS_DIR);
 }
 
+export function extractEnvVar(value: string): string | null {
+  return value.match(ENV_VAR_PATTERN)?.[1] ?? null;
+}
+
+export function extractBearerTokenEnvVar(value: string): string | null {
+  return value.match(BEARER_ENV_VAR_PATTERN)?.[1] ?? null;
+}
+
+export function containsEnvPlaceholderSyntax(value: string): boolean {
+  return value.includes("${");
+}
+
+export function transformEnvVars<T>(
+  value: T,
+  transform: (varName: string) => string,
+): T {
+  if (typeof value === "string") {
+    const envVar = extractEnvVar(value);
+    if (envVar) return transform(envVar) as T;
+
+    const bearerEnvVar = extractBearerTokenEnvVar(value);
+    if (bearerEnvVar) return `Bearer ${transform(bearerEnvVar)}` as T;
+
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => transformEnvVars(item, transform)) as T;
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        transformEnvVars(item, transform),
+      ]),
+    ) as T;
+  }
+
+  return value;
+}
+
 export function loadMcpsFrom(dir: string): McpConfig[] {
   if (!existsSync(dir)) return [];
 
@@ -86,13 +139,19 @@ export function loadMcpsFrom(dir: string): McpConfig[] {
     .map((f) => {
       const mcpPath = join(dir, f);
       const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
-      if (!content.config || typeof content.config.command !== "string") {
-        throw new Error(`Invalid MCP config in ${f}: missing "config.command"`);
+      const config = content.config as Record<string, unknown> | undefined;
+      if (
+        !config ||
+        (typeof config.command !== "string" && typeof config.url !== "string")
+      ) {
+        throw new Error(
+          `Invalid MCP config in ${f}: missing "config.command" or "config.url"`,
+        );
       }
       return {
         name: f.replace(/\.json$/, ""),
         description: content.description || "",
-        config: content.config,
+        config: config as McpConfig["config"],
         path: mcpPath,
       };
     });

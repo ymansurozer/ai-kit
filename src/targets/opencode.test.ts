@@ -51,6 +51,26 @@ describe("convertMcpConfig", () => {
     expect(result.environment).toEqual({ API_KEY: "secret", PORT: "3000" });
   });
 
+  test("converts exact env placeholders to OpenCode syntax", () => {
+    const mcp: McpConfig = {
+      name: "search-service",
+      description: "",
+      config: {
+        command: "npx",
+        args: ["-y", "example-mcp-server"],
+        env: {
+          SERVICE_USERNAME: "${SERVICE_USERNAME}",
+        },
+      },
+      path: "",
+    };
+
+    const result = convertMcpConfig(mcp);
+    expect(result.environment).toEqual({
+      SERVICE_USERNAME: "{env:SERVICE_USERNAME}",
+    });
+  });
+
   test("omits environment when no env", () => {
     const mcp: McpConfig = {
       name: "test",
@@ -61,6 +81,45 @@ describe("convertMcpConfig", () => {
 
     const result = convertMcpConfig(mcp);
     expect(result.environment).toBeUndefined();
+  });
+
+  test("converts url config to remote MCP", () => {
+    const mcp: McpConfig = {
+      name: "docs-search",
+      description: "",
+      config: {
+        url: "https://mcp.example.com/docs",
+        headers: { Authorization: "Bearer token" },
+      },
+      path: "",
+    };
+
+    const result = convertMcpConfig(mcp);
+    expect(result.type).toBe("remote");
+    expect(result.url).toBe("https://mcp.example.com/docs");
+    expect(result.headers).toEqual({ Authorization: "Bearer token" });
+  });
+
+  test("converts remote placeholders to OpenCode syntax", () => {
+    const mcp: McpConfig = {
+      name: "analytics",
+      description: "",
+      config: {
+        url: "https://mcp.example.com/analytics",
+        headers: {
+          Authorization: "Bearer ${ANALYTICS_AUTH_TOKEN}",
+          X_API_KEY: "${DOCS_API_KEY}",
+        },
+      },
+      path: "",
+    };
+
+    const result = convertMcpConfig(mcp);
+    expect(result.type).toBe("remote");
+    expect(result.headers).toEqual({
+      Authorization: "Bearer {env:ANALYTICS_AUTH_TOKEN}",
+      X_API_KEY: "{env:DOCS_API_KEY}",
+    });
   });
 });
 
@@ -155,6 +214,28 @@ describe("installOpencode per-repo", () => {
     );
     expect(config.mcp["with-env"].environment).toEqual({ KEY: "val" });
     expect(config.mcp["with-env"].command).toEqual(["node", "server.js"]);
+  });
+
+  test("writes placeholder-based remote auth without embedding secrets", () => {
+    const mcp: McpConfig = {
+      name: "analytics",
+      description: "",
+      config: {
+        url: "https://mcp.example.com/analytics",
+        headers: {
+          Authorization: "Bearer ${ANALYTICS_API_TOKEN}",
+        },
+      },
+      path: "",
+    };
+
+    installOpencode([], [mcp], false, tmpDir);
+    const raw = readFileSync(join(tmpDir, "opencode.json"), "utf-8");
+    const config = JSON.parse(raw);
+    expect(config.mcp.analytics.headers.Authorization).toBe(
+      "Bearer {env:ANALYTICS_API_TOKEN}",
+    );
+    expect(raw).not.toContain("Bearer ${ANALYTICS_API_TOKEN}");
   });
 
   test("skips MCP install when no MCPs provided", () => {

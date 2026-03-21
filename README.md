@@ -90,7 +90,7 @@ ai-kit add skill frontend-design --from anthropics/skills
 ai-kit add mcp playwright
 ```
 
-Then edit `mcps/playwright.json`:
+Then edit `mcps/playwright.json`. Local stdio MCPs look like this:
 
 ```json
 {
@@ -98,6 +98,31 @@ Then edit `mcps/playwright.json`:
   "config": {
     "command": "npx",
     "args": ["-y", "@playwright/mcp"]
+  }
+}
+```
+
+Remote HTTP MCPs work too:
+
+```json
+{
+  "description": "Documentation search",
+  "config": {
+    "url": "https://mcp.example.com/docs"
+  }
+}
+```
+
+Keep committed MCP configs secret-free. Use `${VAR}` placeholders for machine-local secrets and paths:
+
+```json
+{
+  "description": "Analytics MCP",
+  "config": {
+    "url": "https://mcp.example.com/analytics",
+    "headers": {
+      "Authorization": "Bearer ${ANALYTICS_API_TOKEN}"
+    }
   }
 }
 ```
@@ -154,6 +179,45 @@ ai-kit install claude --skills writing-style,humanizer --mcps playwright
 ```
 
 That's it. Commit your repo, and you have a portable, versioned collection of AI skills and MCP configs.
+
+## Secret-free MCP configs
+
+`ai-kit` treats the files in `mcps/` as the canonical source of truth. Keep them portable and secret-free:
+
+- Use exact `${VAR}` placeholders for env values, headers, and machine-local paths
+- Use `Authorization: "Bearer ${VAR}"` for bearer-token HTTP auth
+- Don't commit real API keys, passwords, or local credential file paths
+
+Example stdio MCP with secret placeholders:
+
+```json
+{
+  "description": "Example service",
+  "config": {
+    "command": "npx",
+    "args": ["-y", "example-mcp-server"],
+    "env": {
+      "SERVICE_USERNAME": "${SERVICE_USERNAME}",
+      "SERVICE_PASSWORD": "${SERVICE_PASSWORD}",
+      "CREDENTIALS_FILE": "${CREDENTIALS_FILE}"
+    }
+  }
+}
+```
+
+At install time, `ai-kit` renders those placeholders into each target's native config format:
+
+- **Claude Code**: `${VAR}` is written through as-is
+- **OpenCode**: `${VAR}` becomes `{env:VAR}`
+- **Codex**: stdio env placeholders become `env_vars`; HTTP header placeholders become `env_http_headers`; bearer auth becomes `bearer_token_env_var`
+- **Pi**: no MCP support
+
+Only two placeholder forms are supported in committed MCP JSON:
+
+- Exact `${VAR}`
+- `Bearer ${VAR}`
+
+Other interpolation forms like `prefix-${VAR}` or `/path/${VAR}/file.json` are intentionally not supported.
 
 ## Where things land
 
@@ -229,6 +293,7 @@ Browse available third-party skills at **[skills.sh](https://skills.sh)**.
 
 - **Copy, not symlink** — portable across Docker, CI, and tools that don't follow symlinks
 - **Merge, not overwrite** — MCP configs are merged into existing JSON/TOML, preserving your other entries
+- **Secret-free MCP placeholders** — commit `${VAR}` references once, then render them to each harness at install time
 - **Agent Skills standard** — `SKILL.md` works across 30+ tools without conversion (Claude global commands are the one exception — the CLI handles it)
 - **Local MCP servers** — write your own with [FastMCP](https://github.com/punkpeye/fastmcp), paths resolved automatically at install time
 
