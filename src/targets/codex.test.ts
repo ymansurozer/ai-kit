@@ -62,6 +62,49 @@ describe("buildTomlSection", () => {
     expect(result).toContain('API_KEY = "secret"\n');
   });
 
+  test("moves exact env placeholders into env_vars", () => {
+    const mcp: McpConfig = {
+      name: "search-service",
+      description: "",
+      config: {
+        command: "npx",
+        args: ["-y", "example-mcp-server"],
+        env: {
+          SERVICE_USERNAME: "${SERVICE_USERNAME}",
+          SERVICE_PASSWORD: "${SERVICE_PASSWORD}",
+        },
+      },
+      path: "",
+    };
+
+    const result = buildTomlSection(mcp);
+    expect(result).toContain(
+      'env_vars = ["SERVICE_USERNAME", "SERVICE_PASSWORD"]\n',
+    );
+    expect(result).not.toContain("[mcp_servers.search-service.env]");
+  });
+
+  test("splits static env values from forwarded env_vars", () => {
+    const mcp: McpConfig = {
+      name: "credentials-file",
+      description: "",
+      config: {
+        command: "npx",
+        args: ["-y", "example-file-mcp"],
+        env: {
+          CREDENTIALS_FILE: "${CREDENTIALS_FILE}",
+          NODE_ENV: "production",
+        },
+      },
+      path: "",
+    };
+
+    const result = buildTomlSection(mcp);
+    expect(result).toContain('env_vars = ["CREDENTIALS_FILE"]\n');
+    expect(result).toContain("[mcp_servers.credentials-file.env]\n");
+    expect(result).toContain('NODE_ENV = "production"\n');
+  });
+
   test("builds section with command only (no args, no env)", () => {
     const mcp: McpConfig = {
       name: "simple",
@@ -72,6 +115,90 @@ describe("buildTomlSection", () => {
 
     const result = buildTomlSection(mcp);
     expect(result).toBe('[mcp_servers.simple]\ncommand = "echo"\n');
+  });
+
+  test("builds section with remote MCP url", () => {
+    const mcp: McpConfig = {
+      name: "docs-search",
+      description: "",
+      config: { url: "https://mcp.example.com/docs" },
+      path: "",
+    };
+
+    const result = buildTomlSection(mcp);
+    expect(result).toBe(
+      '[mcp_servers.docs-search]\nurl = "https://mcp.example.com/docs"\n',
+    );
+  });
+
+  test("moves remote env-backed headers into env_http_headers", () => {
+    const mcp: McpConfig = {
+      name: "docs-search",
+      description: "",
+      config: {
+        url: "https://mcp.example.com/docs",
+        headers: {
+          X_API_KEY: "${DOCS_API_KEY}",
+        },
+      },
+      path: "",
+    };
+
+    const result = buildTomlSection(mcp);
+    expect(result).toContain("[mcp_servers.docs-search.env_http_headers]\n");
+    expect(result).toContain('X_API_KEY = "DOCS_API_KEY"\n');
+  });
+
+  test("converts bearer placeholders to bearer_token_env_var", () => {
+    const mcp: McpConfig = {
+      name: "analytics",
+      description: "",
+      config: {
+        url: "https://mcp.example.com/analytics",
+        headers: {
+          Authorization: "Bearer ${ANALYTICS_AUTH_TOKEN}",
+        },
+      },
+      path: "",
+    };
+
+    const result = buildTomlSection(mcp);
+    expect(result).toContain('bearer_token_env_var = "ANALYTICS_AUTH_TOKEN"\n');
+    expect(result).not.toContain("http_headers");
+  });
+
+  test("throws for unsupported interpolation", () => {
+    const mcp: McpConfig = {
+      name: "bad",
+      description: "",
+      config: {
+        command: "npx",
+        args: ["prefix-${TOKEN}"],
+      },
+      path: "",
+    };
+
+    expect(() => buildTomlSection(mcp)).toThrow(
+      "Unsupported MCP config for bad: args[0] uses unsupported placeholder interpolation",
+    );
+  });
+
+  test("throws when forwarded env var name does not match target key", () => {
+    const mcp: McpConfig = {
+      name: "bad-alias",
+      description: "",
+      config: {
+        command: "npx",
+        env: {
+          API_KEY: "${OTHER_KEY}",
+        },
+      },
+      path: "",
+    };
+
+    expect(() => buildTomlSection(mcp)).toThrow(
+      "Unsupported MCP config for bad-alias: env.API_KEY references OTHER_KEY",
+    );
   });
 });
 
@@ -197,5 +324,24 @@ describe("installCodex per-repo", () => {
     );
     const matches = toml.match(/\[mcp_servers\.pw\]/g);
     expect(matches).toHaveLength(1);
+  });
+
+  test("writes bearer token indirection for remote auth without embedding secrets", () => {
+    const mcp: McpConfig = {
+      name: "analytics",
+      description: "",
+      config: {
+        url: "https://mcp.example.com/analytics",
+        headers: {
+          Authorization: "Bearer ${ANALYTICS_API_TOKEN}",
+        },
+      },
+      path: "",
+    };
+
+    installCodex([], [mcp], false, tmpDir);
+    const toml = readFileSync(join(tmpDir, ".codex", "config.toml"), "utf-8");
+    expect(toml).toContain('bearer_token_env_var = "ANALYTICS_API_TOKEN"');
+    expect(toml).not.toContain("Bearer ${ANALYTICS_API_TOKEN}");
   });
 });

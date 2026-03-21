@@ -1,7 +1,13 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
-import type { Skill, McpConfig } from "../config";
+import {
+  transformEnvVars,
+  type Skill,
+  type McpConfig,
+  type StdioMcpTransportConfig,
+  type HttpMcpTransportConfig,
+} from "../config";
 import { installSkillsToDir } from "./shared";
 import { log } from "../log";
 
@@ -21,15 +27,28 @@ export function installOpencode(
 }
 
 export function convertMcpConfig(mcp: McpConfig): Record<string, unknown> {
-  const entry: Record<string, unknown> = {
-    type: "local",
-    command: mcp.config.args
-      ? [mcp.config.command, ...mcp.config.args]
-      : [mcp.config.command],
-  };
-  if (mcp.config.env) {
-    entry.environment = mcp.config.env;
+  if ("url" in mcp.config && typeof mcp.config.url === "string") {
+    const config = transformEnvVars(mcp.config, (varName) => `{env:${varName}}`) as HttpMcpTransportConfig;
+    return {
+      ...config,
+      type: "remote",
+    };
   }
+
+  const config = transformEnvVars(
+    mcp.config,
+    (varName) => `{env:${varName}}`,
+  ) as StdioMcpTransportConfig;
+  const entry: Record<string, unknown> = {
+    ...config,
+    type: "local",
+    command: config.args ? [config.command, ...config.args] : [config.command],
+  };
+  if (config.env) {
+    entry.environment = config.env;
+    delete entry.env;
+  }
+  delete entry.args;
   return entry;
 }
 

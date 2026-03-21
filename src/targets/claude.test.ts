@@ -117,6 +117,51 @@ describe("installClaude per-repo", () => {
     expect(mcpJson.mcpServers.playwright.command).toBe("npx");
   });
 
+  test("preserves exact env placeholders for Claude", () => {
+    const mcp: McpConfig = {
+      name: "search-service",
+      description: "",
+      config: {
+        command: "npx",
+        args: ["-y", "example-mcp-server"],
+        env: {
+          SERVICE_USERNAME: "${SERVICE_USERNAME}",
+        },
+      },
+      path: "",
+    };
+
+    installClaude([], [mcp], false, tmpDir);
+    const mcpJson = JSON.parse(
+      readFileSync(join(tmpDir, ".mcp.json"), "utf-8"),
+    );
+    expect(mcpJson.mcpServers["search-service"].env.SERVICE_USERNAME).toBe(
+      "${SERVICE_USERNAME}",
+    );
+  });
+
+  test("preserves HTTP MCP placeholders for Claude", () => {
+    const mcp: McpConfig = {
+      name: "analytics",
+      description: "",
+      config: {
+        url: "https://mcp.example.com/analytics",
+        headers: {
+          Authorization: "Bearer ${ANALYTICS_AUTH_TOKEN}",
+        },
+      },
+      path: "",
+    };
+
+    installClaude([], [mcp], false, tmpDir);
+    const mcpJson = JSON.parse(
+      readFileSync(join(tmpDir, ".mcp.json"), "utf-8"),
+    );
+    expect(mcpJson.mcpServers.analytics.headers.Authorization).toBe(
+      "Bearer ${ANALYTICS_AUTH_TOKEN}",
+    );
+  });
+
   test("merges MCPs into existing .mcp.json", () => {
     writeFileSync(
       join(tmpDir, ".mcp.json"),
