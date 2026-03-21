@@ -14,7 +14,7 @@ import { SKILLS_DIR } from "./config";
 import { log } from "./log";
 
 /**
- * Fetch a skill using Vercel's skills CLI (`npx skills add`).
+ * Fetch a skill using Vercel's skills CLI (`bunx skills add`).
  * Runs in a temp directory, then copies the SKILL.md into our skills/ folder.
  */
 export function fetchSkill(
