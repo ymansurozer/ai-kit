@@ -4,6 +4,7 @@ import { homedir } from "os";
 import type { Skill, McpConfig } from "../config";
 import { parseFrontmatter } from "../config";
 import { installSkillsToDir } from "./shared";
+import { mergeTargetConfig } from "./merge";
 import { log } from "../log";
 
 export function installClaude(
@@ -63,7 +64,13 @@ function installMcpsLocal(mcps: McpConfig[], cwd: string): void {
   const servers = existing.mcpServers as Record<string, unknown>;
 
   for (const mcp of mcps) {
-    servers[mcp.name] = mcp.config;
+    servers[mcp.name] = mergeTargetConfig(servers[mcp.name], mcp.config, [
+      "command",
+      "args",
+      "env",
+      "url",
+      "headers",
+    ]);
     log.success(`Installed MCP ${mcp.name} → .mcp.json`);
   }
 
@@ -84,7 +91,13 @@ function installMcpsGlobal(mcps: McpConfig[]): void {
   const servers = existing.mcpServers as Record<string, unknown>;
 
   for (const mcp of mcps) {
-    servers[mcp.name] = mcp.config;
+    servers[mcp.name] = mergeTargetConfig(servers[mcp.name], mcp.config, [
+      "command",
+      "args",
+      "env",
+      "url",
+      "headers",
+    ]);
     log.success(`Installed MCP ${mcp.name} → ~/.claude/settings.json`);
   }
 

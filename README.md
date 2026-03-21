@@ -293,6 +293,7 @@ Browse available third-party skills at **[skills.sh](https://skills.sh)**.
 
 - **Copy, not symlink** — portable across Docker, CI, and tools that don't follow symlinks
 - **Merge, not overwrite** — MCP configs are merged into existing JSON/TOML, preserving your other entries
+- **Safe per-server merge** — ai-kit only overrides the target-native MCP keys it emits for a given server, preserving unrelated local metadata in that same server entry
 - **Secret-free MCP placeholders** — commit `${VAR}` references once, then render them to each harness at install time
 - **Agent Skills standard** — `SKILL.md` works across 30+ tools without conversion (Claude global commands are the one exception — the CLI handles it)
 - **Local MCP servers** — write your own with [FastMCP](https://github.com/punkpeye/fastmcp), paths resolved automatically at install time

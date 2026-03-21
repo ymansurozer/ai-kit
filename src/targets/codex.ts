@@ -13,6 +13,26 @@ import {
 import { installSkillsToDir } from "./shared";
 import { log } from "../log";
 
+interface TomlSection {
+  name: string;
+  lines: string[];
+  start: number;
+  end: number;
+}
+
+const OWNED_ROOT_KEYS = new Set([
+  "command",
+  "url",
+  "args",
+  "env_vars",
+  "bearer_token_env_var",
+]);
+const OWNED_SUBSECTIONS = new Set([
+  "env",
+  "http_headers",
+  "env_http_headers",
+]);
+
 export function installCodex(
   skills: Skill[],
   mcps: McpConfig[],
@@ -53,9 +73,9 @@ function mergeMcpsToml(
   }
 
   for (const mcp of mcps) {
-    content = removeTomlSection(content, `mcp_servers.${mcp.name}`);
+    const sectionPrefix = `mcp_servers.${mcp.name}`;
     const section = buildTomlSection(mcp);
-    content = content.trimEnd() + (content.trim() ? "\n\n" : "") + section;
+    content = mergeTomlSection(content, section, sectionPrefix);
     log.success(`Installed MCP ${mcp.name} → ${displayPath}`);
   }
 
@@ -63,31 +83,7 @@ function mergeMcpsToml(
 }
 
 export function removeTomlSection(content: string, sectionPrefix: string): string {
-  const lines = content.split("\n");
-  const result: string[] = [];
-  let skipping = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith("[")) {
-      const closeBracket = trimmed.indexOf("]");
-      const sectionName = trimmed.slice(1, closeBracket);
-      if (
-        sectionName === sectionPrefix ||
-        sectionName.startsWith(sectionPrefix + ".")
-      ) {
-        skipping = true;
-        continue;
-      } else {
-        skipping = false;
-      }
-    }
-    if (!skipping) {
-      result.push(line);
-    }
-  }
-
-  return result.join("\n");
+  return extractTomlSections(content, sectionPrefix).content;
 }
 
 export function buildTomlSection(mcp: McpConfig): string {
@@ -200,6 +196,186 @@ function buildHttpTomlSection(
   }
 
   return section;
+}
+
+function extractTomlSections(
+  content: string,
+  sectionPrefix: string,
+): { content: string; sections: TomlSection[]; found: boolean } {
+  const marker = "__AI_KIT_TOML_SECTION__";
+  const lines = content.split("\n");
+  const parsedSections = parseTomlSections(content);
+  const sections = parsedSections.filter(
+    (section) =>
+      section.name === sectionPrefix ||
+      section.name.startsWith(sectionPrefix + "."),
+  );
+  if (sections.length === 0) {
+    return {
+      content,
+      sections: [],
+      found: false,
+    };
+  }
+
+  const firstStart = Math.min(...sections.map((section) => section.start));
+  const skippedLines = new Set<number>();
+  for (const section of sections) {
+    for (let index = section.start; index <= section.end; index++) {
+      skippedLines.add(index);
+    }
+  }
+
+  const result: string[] = [];
+  let insertedMarker = false;
+  for (const [index, line] of lines.entries()) {
+    if (skippedLines.has(index)) {
+      if (!insertedMarker && index === firstStart) {
+        result.push(marker);
+        insertedMarker = true;
+      }
+      continue;
+    }
+
+    result.push(line);
+  }
+
+  return {
+    content: result.join("\n"),
+    sections,
+    found: true,
+  };
+}
+
+function getTomlSectionName(line: string): string | null {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("[")) return null;
+
+  const closeBracket = trimmed.indexOf("]");
+  if (closeBracket === -1) return null;
+
+  return trimmed.slice(1, closeBracket);
+}
+
+function getTomlKey(line: string): string | null {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("#")) return null;
+
+  const match = trimmed.match(/^([A-Za-z0-9_-]+)\s*=/);
+  return match?.[1] ?? null;
+}
+
+function mergeTomlSection(
+  existing: string,
+  emitted: string,
+  sectionPrefix: string,
+): string {
+  const extracted = extractTomlSections(existing, sectionPrefix);
+  const emittedSections = parseTomlSections(emitted);
+  const mergedSection = renderTomlSections(
+    mergeTomlSections(extracted.sections, emittedSections),
+  );
+
+  if (extracted.found) {
+    return extracted.content.replace("__AI_KIT_TOML_SECTION__", mergedSection);
+  }
+
+  const base = extracted.content.trimEnd();
+  return `${base}${base ? "\n\n" : ""}${mergedSection}`;
+}
+
+function parseTomlSections(content: string): TomlSection[] {
+  const lines = content.split("\n");
+  const sections: TomlSection[] = [];
+  let currentSection: TomlSection | null = null;
+
+  for (const [index, line] of lines.entries()) {
+    const sectionName = getTomlSectionName(line);
+    if (sectionName) {
+      if (currentSection) {
+        currentSection.end = index - 1;
+        sections.push(currentSection);
+      }
+      currentSection = { name: sectionName, lines: [], start: index, end: index };
+      continue;
+    }
+
+    if (currentSection) {
+      currentSection.lines.push(line);
+      currentSection.end = index;
+    }
+  }
+
+  if (currentSection) sections.push(currentSection);
+  return sections;
+}
+
+function mergeTomlSections(
+  existingSections: TomlSection[],
+  emittedSections: TomlSection[],
+): TomlSection[] {
+  if (emittedSections.length === 0) return existingSections;
+
+  const rootName = emittedSections[0].name;
+  const existingByName = new Map(existingSections.map((section) => [section.name, section]));
+  const emittedByName = new Map(emittedSections.map((section) => [section.name, section]));
+  const emittedRoot = emittedSections[0];
+  const existingRoot = existingByName.get(rootName);
+
+  const merged: TomlSection[] = [
+    {
+      name: rootName,
+      lines: [
+        ...(existingRoot?.lines.filter((line) => {
+          const key = getTomlKey(line);
+          return !key || !OWNED_ROOT_KEYS.has(key);
+        }) ?? []),
+        ...emittedRoot.lines,
+      ],
+    },
+  ];
+
+  const added = new Set<string>();
+  for (const section of existingSections) {
+    if (section.name === rootName) continue;
+
+    const subsectionName = section.name.slice(rootName.length + 1);
+    if (OWNED_SUBSECTIONS.has(subsectionName)) {
+      const emittedSection = emittedByName.get(section.name);
+      if (emittedSection) {
+        merged.push(emittedSection);
+        added.add(section.name);
+      }
+      continue;
+    }
+
+    const emittedSection = emittedByName.get(section.name);
+    if (emittedSection) {
+      merged.push(emittedSection);
+      added.add(section.name);
+      continue;
+    }
+
+    merged.push(section);
+  }
+
+  for (const section of emittedSections.slice(1)) {
+    if (added.has(section.name)) continue;
+    if (!existingByName.has(section.name)) {
+      merged.push(section);
+    }
+  }
+
+  return merged;
+}
+
+function renderTomlSections(sections: TomlSection[]): string {
+  return sections
+    .map((section) => {
+      const body = section.lines.join("\n").replace(/\n+$/g, "");
+      return body ? `[${section.name}]\n${body}` : `[${section.name}]`;
+    })
+    .join("\n\n");
 }
 
 function assertNoUnsupportedPlaceholder(

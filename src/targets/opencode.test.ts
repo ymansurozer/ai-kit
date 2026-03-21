@@ -187,6 +187,93 @@ describe("installOpencode per-repo", () => {
     expect(config.mcp["new-one"]).toBeDefined();
   });
 
+  test("preserves unrelated keys inside an existing MCP entry", () => {
+    writeFileSync(
+      join(tmpDir, "opencode.json"),
+      JSON.stringify({
+        mcp: {
+          playwright: {
+            type: "local",
+            command: ["old", "--flag"],
+            environment: {
+              SERVICE_USERNAME: "old-user",
+              LOCAL_ONLY: "keep",
+            },
+            enabled: false,
+          },
+        },
+      }),
+    );
+
+    const mcp: McpConfig = {
+      name: "playwright",
+      description: "",
+      config: {
+        command: "npx",
+        args: ["-y", "@playwright/mcp"],
+        env: {
+          SERVICE_USERNAME: "${SERVICE_USERNAME}",
+        },
+      },
+      path: "",
+    };
+
+    installOpencode([], [mcp], false, tmpDir);
+    const config = JSON.parse(
+      readFileSync(join(tmpDir, "opencode.json"), "utf-8"),
+    );
+    expect(config.mcp.playwright.command).toEqual(["npx", "-y", "@playwright/mcp"]);
+    expect(config.mcp.playwright.environment).toEqual({
+      SERVICE_USERNAME: "{env:SERVICE_USERNAME}",
+    });
+    expect(config.mcp.playwright.enabled).toBe(false);
+  });
+
+  test("replaces owned nested keys when reinstalling an MCP entry", () => {
+    writeFileSync(
+      join(tmpDir, "opencode.json"),
+      JSON.stringify({
+        mcp: {
+          analytics: {
+            type: "remote",
+            url: "https://old.example.com",
+            headers: {
+              Authorization: "Bearer old-token",
+              X_OLD: "remove-me",
+            },
+            environment: {
+              API_KEY: "old-key",
+            },
+            enabled: false,
+          },
+        },
+      }),
+    );
+
+    const mcp: McpConfig = {
+      name: "analytics",
+      description: "",
+      config: {
+        url: "https://mcp.example.com/analytics",
+        headers: {
+          Authorization: "Bearer ${ANALYTICS_API_TOKEN}",
+        },
+      },
+      path: "",
+    };
+
+    installOpencode([], [mcp], false, tmpDir);
+    const config = JSON.parse(
+      readFileSync(join(tmpDir, "opencode.json"), "utf-8"),
+    );
+    expect(config.mcp.analytics.url).toBe("https://mcp.example.com/analytics");
+    expect(config.mcp.analytics.headers).toEqual({
+      Authorization: "Bearer {env:ANALYTICS_API_TOKEN}",
+    });
+    expect(config.mcp.analytics.environment).toBeUndefined();
+    expect(config.mcp.analytics.enabled).toBe(false);
+  });
+
   test("preserves non-mcp keys in opencode.json", () => {
     writeFileSync(
       join(tmpDir, "opencode.json"),
