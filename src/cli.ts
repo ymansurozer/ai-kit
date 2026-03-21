@@ -33,15 +33,15 @@ function showHelp(): void {
   ai-kit — Centralized AI Skills & MCP Manager
 
   Usage:
-    ai-kit install <target>     Install skills and MCPs to a target
-    ai-kit list                 List available skills and MCPs
-    ai-kit sync                 Re-sync all tracked installations
-    ai-kit add skill <name>     Scaffold a new skill
-    ai-kit add skill <n> --from <repo>  Add skill from skills.sh / GitHub
-    ai-kit add mcp <name>       Scaffold a new MCP config
-    ai-kit add server <name>    Scaffold a local MCP server (FastMCP)
-    ai-kit update [name]        Update third-party skills from origin
-    ai-kit detach <name>        Detach a skill from its upstream source
+    ai-kit install <target>                 Install skills and MCPs to a target
+    ai-kit list                             List available skills and MCPs
+    ai-kit sync                             Re-sync all tracked installations
+    ai-kit add skill <name>                 Scaffold a new skill
+    ai-kit add skill <name> --from <source> Fetch a skill from skills.sh / GitHub
+    ai-kit add mcp <name>                   Scaffold a new MCP config
+    ai-kit add server <name>                Scaffold a local MCP server (FastMCP)
+    ai-kit update [name]                    Update third-party skills from origin
+    ai-kit detach <name>                    Detach a skill from its upstream source
 
   Targets:
     claude, codex, pi, opencode
@@ -50,14 +50,14 @@ function showHelp(): void {
     --global                    Install globally instead of per-repo
     --skills <names>            Cherry-pick skills (comma-separated)
     --mcps <names>              Cherry-pick MCPs (comma-separated)
-    --from <source>             Source repo for external skills (uses skills CLI)
+    --from <source>             External skill source (GitHub shorthand), e.g. anthropics/skills
 
   Examples:
     ai-kit install claude
     ai-kit install claude --global
     ai-kit install codex --skills review,humanizer --mcps playwright
     ai-kit install pi
-    ai-kit add skill frontend-design --from vercel-labs/agent-skills
+    ai-kit add skill frontend-design --from anthropics/skills
     ai-kit update
     ai-kit sync
 `);

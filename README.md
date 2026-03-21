@@ -285,7 +285,7 @@ ai-kit list
 ai-kit detach frontend-design
 ```
 
-Under the hood this uses [Vercel's skills CLI](https://github.com/vercel-labs/skills) to fetch the skill. A `source.json` is saved alongside the `SKILL.md` to record the origin. Running `ai-kit detach <name>` removes that `source.json`, converting it to a local skill that `update` will skip.
+Under the hood this uses [Vercel's skills CLI](https://github.com/vercel-labs/skills) to fetch the skill. `--from` accepts any source format supported by that CLI, including GitHub shorthand like `anthropics/skills` and full URLs like `https://github.com/anthropics/skills`. A `source.json` is saved alongside the `SKILL.md` to record the origin. Running `ai-kit detach <name>` removes that `source.json`, converting it to a local skill that `update` will skip.
 
 Browse available third-party skills at **[skills.sh](https://skills.sh)**.
 
