@@ -7,11 +7,17 @@ export function mergeTargetConfig(
     existing && typeof existing === "object" && !Array.isArray(existing)
       ? (existing as Record<string, unknown>)
       : {};
-  const result = { ...current };
 
+  const result: Record<string, unknown> = {};
+
+  // Write owned keys first (preserves declared order)
   for (const key of ownedKeys) {
     if (key in emitted) result[key] = emitted[key];
-    else delete result[key];
+  }
+
+  // Append non-owned keys from existing config
+  for (const key of Object.keys(current)) {
+    if (!ownedKeys.includes(key)) result[key] = current[key];
   }
 
   return result;
