@@ -91,13 +91,12 @@ function installMcpsGlobal(mcps: McpConfig[]): void {
   const servers = existing.mcpServers as Record<string, unknown>;
 
   for (const mcp of mcps) {
-    servers[mcp.name] = mergeTargetConfig(servers[mcp.name], mcp.config, [
-      "command",
-      "args",
-      "env",
-      "url",
-      "headers",
-    ]);
+    const type = "url" in mcp.config ? "http" : "stdio";
+    servers[mcp.name] = mergeTargetConfig(
+      servers[mcp.name],
+      { ...mcp.config, type },
+      ["type", "command", "args", "env", "url", "headers"],
+    );
     log.success(`Installed MCP ${mcp.name} → ~/.claude.json`);
   }
 
