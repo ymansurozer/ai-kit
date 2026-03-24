@@ -80,11 +80,11 @@ function installMcpsLocal(mcps: McpConfig[], cwd: string): void {
 function installMcpsGlobal(mcps: McpConfig[]): void {
   if (mcps.length === 0) return;
 
-  const settingsPath = join(homedir(), ".claude", "settings.json");
+  const claudeJsonPath = join(homedir(), ".claude.json");
   let existing: Record<string, unknown> = {};
 
-  if (existsSync(settingsPath)) {
-    existing = JSON.parse(readFileSync(settingsPath, "utf-8"));
+  if (existsSync(claudeJsonPath)) {
+    existing = JSON.parse(readFileSync(claudeJsonPath, "utf-8"));
   }
 
   if (!existing.mcpServers) existing.mcpServers = {};
@@ -98,8 +98,8 @@ function installMcpsGlobal(mcps: McpConfig[]): void {
       "url",
       "headers",
     ]);
-    log.success(`Installed MCP ${mcp.name} → ~/.claude/settings.json`);
+    log.success(`Installed MCP ${mcp.name} → ~/.claude.json`);
   }
 
-  writeFileSync(settingsPath, JSON.stringify(existing, null, 2) + "\n");
+  writeFileSync(claudeJsonPath, JSON.stringify(existing, null, 2) + "\n");
 }
