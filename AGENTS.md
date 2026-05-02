@@ -26,7 +26,7 @@ bun link              # link ai-kit as global CLI command
 
 **Install targets (`src/targets/`):**
 - Each target exports `install<Target>(skills, mcps, global, cwd)`
-- `claude.ts` — per-repo: `.agents/skills/` + `.mcp.json`; global: `~/.claude/commands/` (frontmatter name stripped) + `~/.claude/settings.json`
+- `claude.ts` — per-repo: `.agents/skills/` + `.mcp.json`; global: `~/.claude/commands/` (frontmatter name stripped) + `~/.claude.json`
 - `codex.ts` — per-repo: `.agents/skills/` + `.codex/config.toml`; global: `~/.agents/skills/` + `~/.codex/config.toml`
 - `opencode.ts` — per-repo: `.opencode/skills/` + `opencode.json`; global: `~/.config/opencode/skills/` + `~/.config/opencode/opencode.json`
 - `pi.ts` — skills only, no MCP support
