@@ -1,8 +1,8 @@
 <div align="center">
 
-# ai-kit
+# AI Kit
 
-**Your AI skills and MCP servers, in one repo.**
+**Your personal AI skills and MCP servers, in one repo.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Bun](https://img.shields.io/badge/runtime-Bun-f9f1e1.svg)](https://bun.sh)
@@ -19,7 +19,7 @@ Centralize your [Agent Skills](https://github.com/anthropics/agent-skills) and [
 
 You use multiple AI coding tools. Each has its own config format and file locations. You've got skills scattered across repos, MCP configs copy-pasted between projects, and no single source of truth.
 
-**ai-kit** is a personal monorepo for all of it:
+**AI Kit** is a personal monorepo for all of it:
 
 ```
 your-ai-kit/
@@ -41,7 +41,7 @@ One `ai-kit install claude` and everything lands in the right place.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         ai-kit repo                         │
+│                         AI Kit repo                         │
 │                                                             │
 │  skills/               mcps/                servers/        │
 │  ├── writing-style/    ├── playwright.json  ├── image-gen/  │
@@ -182,7 +182,7 @@ That's it. Commit your repo, and you have a portable, versioned collection of AI
 
 ## Secret-free MCP configs
 
-`ai-kit` treats the files in `mcps/` as the canonical source of truth. Keep them portable and secret-free:
+AI Kit treats the files in `mcps/` as the canonical source of truth. Keep them portable and secret-free:
 
 - Use exact `${VAR}` placeholders for env values, headers, and machine-local paths
 - Use `Authorization: "Bearer ${VAR}"` for bearer-token HTTP auth
@@ -205,7 +205,7 @@ Example stdio MCP with secret placeholders:
 }
 ```
 
-At install time, `ai-kit` renders those placeholders into each target's native config format:
+At install time, AI Kit renders those placeholders into each target's native config format:
 
 - **Claude Code**: `${VAR}` is written through as-is
 - **OpenCode**: `${VAR}` becomes `{env:VAR}`
@@ -266,7 +266,7 @@ You can mix both — install some skills globally and others per-repo. `ai-kit s
 
 ## Third-party skills
 
-Not every skill is yours — some come from other people's repos. ai-kit tracks where they came from so you can update them later when the original author makes changes.
+Not every skill is yours — some come from other people's repos. AI Kit tracks where they came from so you can update them later when the original author makes changes.
 
 ```bash
 # Add a third-party skill
@@ -293,7 +293,7 @@ Browse available third-party skills at **[skills.sh](https://skills.sh)**.
 
 - **Copy, not symlink** — portable across Docker, CI, and tools that don't follow symlinks
 - **Merge, not overwrite** — MCP configs are merged into existing JSON/TOML, preserving your other entries
-- **Safe per-server merge** — ai-kit only overrides the target-native MCP keys it emits for a given server, preserving unrelated local metadata in that same server entry
+- **Safe per-server merge** — AI Kit only overrides the target-native MCP keys it emits for a given server, preserving unrelated local metadata in that same server entry
 - **Secret-free MCP placeholders** — commit `${VAR}` references once, then render them to each harness at install time
 - **Agent Skills standard** — `SKILL.md` works across 30+ tools without conversion (Claude global commands are the one exception — the CLI handles it)
 - **Local MCP servers** — write your own with [FastMCP](https://github.com/punkpeye/fastmcp), paths resolved automatically at install time

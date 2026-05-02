@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents (Claude Code, Codex, and others)
 
 ## What this is
 
-ai-kit is a Bun CLI that centralizes AI skills (Agent Skills standard `SKILL.md`) and MCP server configs in a single repo, then installs them to Claude Code, Codex, Pi, or OpenCode — per-repo or globally.
+AI Kit is a Bun CLI that centralizes AI skills (Agent Skills standard `SKILL.md`) and MCP server configs in a single repo, then installs them to Claude Code, Codex, Pi, or OpenCode — per-repo or globally.
 
 ## Commands
 
@@ -39,7 +39,7 @@ bun link              # link ai-kit as global CLI command
 ## Key design decisions
 
 - **Copy, not symlink** — `cpSync()` everywhere for portability
-- **Merge, not overwrite** — MCP configs are merged into existing JSON/TOML, preserving non-ai-kit entries
+- **Merge, not overwrite** — MCP configs are merged into existing JSON/TOML, preserving non-AI Kit entries
 - **Absolute paths for local servers** — resolved at load time in `loadServersFrom()`, written as-is to target configs
 - **Synchronous throughout** — `spawnSync()` for external calls, no async/await in core flow
 
