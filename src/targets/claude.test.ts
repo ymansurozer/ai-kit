@@ -86,9 +86,18 @@ describe("installClaude per-repo", () => {
     rmSync(skillDir, { recursive: true, force: true });
   });
 
-  function makeSkill(name: string): Skill {
-    const path = join(skillDir, `${name}.md`);
+  function makeSkill(name: string, opts?: { references?: Record<string, string> }): Skill {
+    const dir = join(skillDir, name);
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, "SKILL.md");
     writeFileSync(path, `---\nname: ${name}\n---\n# ${name}`);
+    if (opts?.references) {
+      const refsDir = join(dir, "references");
+      mkdirSync(refsDir, { recursive: true });
+      for (const [file, content] of Object.entries(opts.references)) {
+        writeFileSync(join(refsDir, file), content);
+      }
+    }
     return { name, description: "", body: `# ${name}`, path };
   }
 
@@ -106,6 +115,16 @@ describe("installClaude per-repo", () => {
     const dest = join(tmpDir, ".agents", "skills", "review", "SKILL.md");
     expect(existsSync(dest)).toBe(true);
     expect(readFileSync(dest, "utf-8")).toContain("# review");
+  });
+
+  test("copies skill references/ to .agents/skills/", () => {
+    const skill = makeSkill("ymo", {
+      references: { "writing-voice.md": "# Writing Voice\nBe direct." },
+    });
+    installClaude([skill], [], false, tmpDir);
+    const refDest = join(tmpDir, ".agents", "skills", "ymo", "references", "writing-voice.md");
+    expect(existsSync(refDest)).toBe(true);
+    expect(readFileSync(refDest, "utf-8")).toContain("Be direct.");
   });
 
   test("creates .mcp.json with mcpServers", () => {

@@ -30,7 +30,7 @@ export function parseFlags(argv: string[]): Record<string, string | boolean> {
 
 function showHelp(): void {
   console.log(`
-  ai-kit — Centralized AI Skills & MCP Manager
+  AI Kit — Centralized AI Skills & MCP Manager
 
   Usage:
     ai-kit install <target>                 Install skills and MCPs to a target
