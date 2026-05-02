@@ -216,8 +216,24 @@ Only two placeholder forms are supported in committed MCP JSON:
 
 - Exact `${VAR}`
 - `Bearer ${VAR}`
+- For Codex stdio `env` entries, the key must match the var name (e.g. `"FOO": "${FOO}"`, not `"FOO": "${BAR}"`). Codex forwards via `env_vars`, which only supports same-name forwarding.
 
 Other interpolation forms like `prefix-${VAR}` or `/path/${VAR}/file.json` are intentionally not supported.
+
+### Where to set the values
+
+The placeholders in `mcps/*.json` are not expanded by AI Kit at install time — they're rendered into each tool's native format and resolved at MCP launch time, reading from the parent process environment.
+
+Export the values in your shell rc so every AI tool you launch from that shell inherits them:
+
+```bash
+# ~/.zshrc (or ~/.bashrc)
+export SERVICE_USERNAME="you@example.com"
+export SERVICE_PASSWORD="..."
+export CREDENTIALS_FILE="$HOME/.config/example-credentials.json"
+```
+
+After editing, `source ~/.zshrc` and **restart the AI tool** (Claude Code, Codex, etc.) — long-running processes won't pick up new exports. `direnv` works too if you prefer per-directory scoping.
 
 ## Where things land
 
@@ -239,7 +255,7 @@ Both skills and MCPs (including local servers) support two install scopes:
 
 | Target | Skills | MCPs |
 |--------|--------|------|
-| Claude | `~/.claude/commands/<name>.md` | `~/.claude/settings.json` |
+| Claude | `~/.claude/commands/<name>.md` | `~/.claude.json` |
 | Codex | `~/.agents/skills/<name>/SKILL.md` | `~/.codex/config.toml` |
 | Pi | `~/.pi/agent/skills/<name>/SKILL.md` | — |
 | OpenCode | `~/.config/opencode/skills/<name>/SKILL.md` | `~/.config/opencode/opencode.json` |

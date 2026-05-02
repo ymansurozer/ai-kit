@@ -134,6 +134,24 @@ describe("installClaude per-repo", () => {
     );
     expect(mcpJson.mcpServers.playwright).toBeDefined();
     expect(mcpJson.mcpServers.playwright.command).toBe("npx");
+    expect(mcpJson.mcpServers.playwright.type).toBe("stdio");
+  });
+
+  test("sets type=http for HTTP MCPs in .mcp.json", () => {
+    const mcp: McpConfig = {
+      name: "analytics",
+      description: "",
+      config: {
+        url: "https://mcp.example.com/analytics",
+      },
+      path: "",
+    };
+    installClaude([], [mcp], false, tmpDir);
+    const mcpJson = JSON.parse(
+      readFileSync(join(tmpDir, ".mcp.json"), "utf-8"),
+    );
+    expect(mcpJson.mcpServers.analytics.type).toBe("http");
+    expect(mcpJson.mcpServers.analytics.url).toBe("https://mcp.example.com/analytics");
   });
 
   test("preserves exact env placeholders for Claude", () => {
