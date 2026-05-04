@@ -174,6 +174,9 @@ ai-kit install codex
 ai-kit install pi
 ai-kit install opencode
 
+# Install to every supported harness at once
+ai-kit install all --global
+
 # Cherry-pick what you need
 ai-kit install claude --skills writing-style,humanizer --mcps playwright
 ```
@@ -268,6 +271,7 @@ You can mix both — install some skills globally and others per-repo. `ai-kit s
 |---------|-------------|
 | `ai-kit install <target>` | Install skills + MCPs to a target |
 | `ai-kit install <target> --global` | Install globally instead of per-repo |
+| `ai-kit install all` | Fan out to every supported target |
 | `ai-kit install <target> --skills a,b` | Install only specific skills |
 | `ai-kit install <target> --mcps x,y` | Install only specific MCPs |
 | `ai-kit list` | List all available skills and MCPs |
@@ -324,7 +328,7 @@ This repo is designed to be forked:
 4. **Add** your own skills, MCPs, and local servers
 5. **Commit** and push — your AI toolkit is now versioned and portable
 
-When you set up a new machine, clone your fork and run `ai-kit install claude --global` to get everything in place.
+When you set up a new machine, clone your fork and run `ai-kit install all --global` to get everything in place across every supported harness.
 
 ## Contributing
 

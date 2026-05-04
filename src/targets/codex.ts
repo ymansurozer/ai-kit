@@ -16,6 +16,9 @@ import { log } from "../log";
 interface TomlSection {
   name: string;
   lines: string[];
+}
+
+interface ParsedTomlSection extends TomlSection {
   start: number;
   end: number;
 }
@@ -201,7 +204,7 @@ function buildHttpTomlSection(
 function extractTomlSections(
   content: string,
   sectionPrefix: string,
-): { content: string; sections: TomlSection[]; found: boolean } {
+): { content: string; sections: ParsedTomlSection[]; found: boolean } {
   const marker = "__AI_KIT_TOML_SECTION__";
   const lines = content.split("\n");
   const parsedSections = parseTomlSections(content);
@@ -284,10 +287,10 @@ function mergeTomlSection(
   return `${base}${base ? "\n\n" : ""}${mergedSection}`;
 }
 
-function parseTomlSections(content: string): TomlSection[] {
+function parseTomlSections(content: string): ParsedTomlSection[] {
   const lines = content.split("\n");
-  const sections: TomlSection[] = [];
-  let currentSection: TomlSection | null = null;
+  const sections: ParsedTomlSection[] = [];
+  let currentSection: ParsedTomlSection | null = null;
 
   for (const [index, line] of lines.entries()) {
     const sectionName = getTomlSectionName(line);
