@@ -82,6 +82,44 @@ describe("install", () => {
     expect(state.installations[0].mcps).toEqual([]);
   });
 
+  test("`all` fans out to every supported target", () => {
+    const script = `
+      import { install } from ${JSON.stringify(installUrl)};
+      install("all", {
+        global: true,
+        cwd: ${JSON.stringify(projectDir)},
+        skills: [${JSON.stringify(skillName)}],
+        mcps: [${JSON.stringify(mcpName)}],
+      });
+    `;
+
+    const result = spawnSync(process.execPath, ["-e", script], {
+      cwd: repoRoot,
+      env: { ...process.env, HOME: homeDir },
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(0);
+
+    const statePath = join(homeDir, ".ai-kit", "state.json");
+    const state = JSON.parse(readFileSync(statePath, "utf-8"));
+
+    const targets = state.installations.map(
+      (i: { target: string }) => i.target,
+    );
+    expect(targets.sort()).toEqual(["claude", "codex", "opencode", "pi"]);
+
+    for (const inst of state.installations) {
+      expect(inst.global).toBe(true);
+      expect(inst.skills).toEqual([skillName]);
+      if (inst.target === "pi") {
+        expect(inst.mcps).toEqual([]);
+      } else {
+        expect(inst.mcps).toEqual([mcpName]);
+      }
+    }
+  });
+
   test("does not save an empty Pi installation when only MCPs were requested", () => {
     const script = `
       import { install } from ${JSON.stringify(installUrl)};

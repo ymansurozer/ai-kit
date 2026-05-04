@@ -44,7 +44,7 @@ function showHelp(): void {
     ai-kit detach <name>                    Detach a skill from its upstream source
 
   Targets:
-    claude, codex, pi, opencode
+    claude, codex, pi, opencode, all
 
   Flags:
     --global                    Install globally instead of per-repo
@@ -55,6 +55,7 @@ function showHelp(): void {
   Examples:
     ai-kit install claude
     ai-kit install claude --global
+    ai-kit install all --global
     ai-kit install codex --skills review,humanizer --mcps playwright
     ai-kit install pi
     ai-kit add skill frontend-design --from anthropics/skills

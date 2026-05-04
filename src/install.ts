@@ -24,9 +24,16 @@ export interface InstallOptions {
 }
 
 export function install(target: string, options: InstallOptions): void {
+  if (target === "all") {
+    for (const t of Object.keys(TARGETS)) {
+      install(t, options);
+    }
+    return;
+  }
+
   if (!TARGETS[target]) {
     throw new Error(
-      `Unknown target: ${target}. Available: ${Object.keys(TARGETS).join(", ")}`,
+      `Unknown target: ${target}. Available: ${Object.keys(TARGETS).join(", ")}, all`,
     );
   }
 
