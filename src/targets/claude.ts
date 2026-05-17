@@ -3,7 +3,7 @@ import { join } from "path";
 import { homedir } from "os";
 import type { Skill, McpConfig } from "../config";
 import { parseFrontmatter } from "../config";
-import { installSkillsToDir, copySkillSubdirs } from "./shared";
+import { installSkillsToDir, copySkillAssets } from "./shared";
 import { mergeTargetConfig } from "./merge";
 import { log } from "../log";
 
@@ -46,7 +46,7 @@ function installSkillsGlobal(skills: Skill[]): void {
 
     const dest = join(commandsDir, `${skill.name}.md`);
     writeFileSync(dest, output);
-    copySkillSubdirs(skill.path, commandsDir);
+    copySkillAssets(skill.path, commandsDir);
     log.success(`Installed skill ${skill.name} → ~/.claude/commands/${skill.name}.md`);
   }
 }
