@@ -8,7 +8,7 @@ import {
   mkdirSync,
   writeFileSync,
 } from "fs";
-import { join } from "path";
+import { dirname, join } from "path";
 import { tmpdir } from "os";
 import { SKILLS_DIR } from "./config";
 import { log } from "./log";
@@ -46,7 +46,7 @@ export function fetchSkill(
 
     const destDir = join(SKILLS_DIR, name);
     mkdirSync(destDir, { recursive: true });
-    cpSync(skillMd, join(destDir, "SKILL.md"));
+    cpSync(dirname(skillMd), destDir, { recursive: true });
 
     writeFileSync(
       join(destDir, "source.json"),
