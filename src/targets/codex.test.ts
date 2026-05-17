@@ -301,6 +301,21 @@ describe("installCodex per-repo", () => {
     expect(readFileSync(dest, "utf-8")).toContain("# review");
   });
 
+  test("copies sibling asset files alongside SKILL.md", () => {
+    const dir = join(skillDir, "prototype");
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, "SKILL.md");
+    writeFileSync(path, `---\nname: prototype\n---\n# prototype`);
+    writeFileSync(join(dir, "LOGIC.md"), "# Logic branch");
+    writeFileSync(join(dir, "UI.md"), "# UI branch");
+    const skill: Skill = { name: "prototype", description: "", body: "# prototype", path };
+
+    installCodex([skill], [], false, tmpDir);
+    const base = join(tmpDir, ".agents", "skills", "prototype");
+    expect(readFileSync(join(base, "LOGIC.md"), "utf-8")).toContain("Logic branch");
+    expect(readFileSync(join(base, "UI.md"), "utf-8")).toContain("UI branch");
+  });
+
   test("creates TOML config for MCPs", () => {
     installCodex([], [makeMcp("playwright")], false, tmpDir);
     const toml = readFileSync(

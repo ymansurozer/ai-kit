@@ -86,7 +86,14 @@ describe("installClaude per-repo", () => {
     rmSync(skillDir, { recursive: true, force: true });
   });
 
-  function makeSkill(name: string, opts?: { references?: Record<string, string> }): Skill {
+  function makeSkill(
+    name: string,
+    opts?: {
+      references?: Record<string, string>;
+      siblings?: Record<string, string>;
+      withSourceJson?: boolean;
+    },
+  ): Skill {
     const dir = join(skillDir, name);
     mkdirSync(dir, { recursive: true });
     const path = join(dir, "SKILL.md");
@@ -97,6 +104,14 @@ describe("installClaude per-repo", () => {
       for (const [file, content] of Object.entries(opts.references)) {
         writeFileSync(join(refsDir, file), content);
       }
+    }
+    if (opts?.siblings) {
+      for (const [file, content] of Object.entries(opts.siblings)) {
+        writeFileSync(join(dir, file), content);
+      }
+    }
+    if (opts?.withSourceJson) {
+      writeFileSync(join(dir, "source.json"), JSON.stringify({ from: "x/y", skill: name, fetchedAt: "2026-01-01" }));
     }
     return { name, description: "", body: `# ${name}`, path };
   }
@@ -125,6 +140,26 @@ describe("installClaude per-repo", () => {
     const refDest = join(tmpDir, ".agents", "skills", "ymo", "references", "writing-voice.md");
     expect(existsSync(refDest)).toBe(true);
     expect(readFileSync(refDest, "utf-8")).toContain("Be direct.");
+  });
+
+  test("copies sibling asset files alongside SKILL.md (per-repo)", () => {
+    const skill = makeSkill("prototype", {
+      siblings: {
+        "LOGIC.md": "# Logic branch",
+        "UI.md": "# UI branch",
+      },
+    });
+    installClaude([skill], [], false, tmpDir);
+    const base = join(tmpDir, ".agents", "skills", "prototype");
+    expect(readFileSync(join(base, "LOGIC.md"), "utf-8")).toContain("Logic branch");
+    expect(readFileSync(join(base, "UI.md"), "utf-8")).toContain("UI branch");
+  });
+
+  test("does not copy source.json into install destination (per-repo)", () => {
+    const skill = makeSkill("fetched", { withSourceJson: true });
+    installClaude([skill], [], false, tmpDir);
+    const dest = join(tmpDir, ".agents", "skills", "fetched", "source.json");
+    expect(existsSync(dest)).toBe(false);
   });
 
   test("creates .mcp.json with mcpServers", () => {
