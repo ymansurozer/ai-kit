@@ -10,11 +10,12 @@ export function installPi(
   global: boolean,
   cwd: string,
 ): void {
-  if (global) {
-    installSkillsToDir(skills, join(homedir(), ".pi", "agent", "skills"), "~/.pi/agent/skills");
-  } else {
-    installSkillsToDir(skills, join(cwd, ".agents", "skills"), ".agents/skills");
-  }
+  const dir = global
+    ? join(homedir(), ".agents", "skills")
+    : join(cwd, ".agents", "skills");
+  const displayPrefix = global ? "~/.agents/skills" : ".agents/skills";
+
+  installSkillsToDir(skills, dir, displayPrefix);
 
   if (mcps.length > 0) {
     log.warn("Pi does not support MCPs — skipping MCP installation");

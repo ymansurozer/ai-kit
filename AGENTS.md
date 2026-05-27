@@ -29,7 +29,7 @@ bun link              # link ai-kit as global CLI command
 - `claude.ts` — per-repo: `.agents/skills/` + `.mcp.json`; global: `~/.claude/commands/` (frontmatter name stripped) + `~/.claude.json`
 - `codex.ts` — per-repo: `.agents/skills/` + `.codex/config.toml`; global: `~/.agents/skills/` + `~/.codex/config.toml`
 - `opencode.ts` — per-repo: `.opencode/skills/` + `opencode.json`; global: `~/.config/opencode/skills/` + `~/.config/opencode/opencode.json`
-- `pi.ts` — skills only, no MCP support
+- `pi.ts` — `.agents/skills/` for both per-repo and global installs, skills only, no MCP support
 - Targets receive McpConfig objects and write `mcp.config` as-is — no path transformation needed
 
 **State (`src/state.ts`):** Tracks all installations in `~/.ai-kit/state.json` keyed by `(target, global, path)`. Enables `ai-kit sync` to re-install everywhere.

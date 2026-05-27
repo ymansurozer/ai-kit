@@ -260,7 +260,7 @@ Both skills and MCPs (including local servers) support two install scopes:
 |--------|--------|------|
 | Claude | `~/.claude/commands/<name>.md` | `~/.claude.json` |
 | Codex | `~/.agents/skills/<name>/SKILL.md` | `~/.codex/config.toml` |
-| Pi | `~/.pi/agent/skills/<name>/SKILL.md` | — |
+| Pi | `~/.agents/skills/<name>/SKILL.md` | — |
 | OpenCode | `~/.config/opencode/skills/<name>/SKILL.md` | `~/.config/opencode/opencode.json` |
 
 You can mix both — install some skills globally and others per-repo. `ai-kit sync` re-installs to all tracked locations.
