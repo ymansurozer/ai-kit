@@ -77,17 +77,17 @@ bun install && bun link
 
 ```bash
 # Create a new skill from template
-ai-kit add skill writing-style
+ai-kit skill add writing-style
 
 # Or grab one from the skills.sh ecosystem
-ai-kit add skill frontend-design --from anthropics/skills
+ai-kit skill add frontend-design --from anthropics/skills
 ```
 
 ### 3. Add your MCPs
 
 ```bash
 # Create a new MCP config from template
-ai-kit add mcp playwright
+ai-kit mcp add playwright
 ```
 
 Then edit `mcps/playwright.json`. Local stdio MCPs look like this:
@@ -132,7 +132,7 @@ Keep committed MCP configs secret-free. Use `${VAR}` placeholders for machine-lo
 For services that don't have an MCP server, write one directly in the repo using [FastMCP](https://github.com/punkpeye/fastmcp):
 
 ```bash
-ai-kit add server image-gen
+ai-kit server add image-gen
 ```
 
 This scaffolds `servers/image-gen/index.ts` with a FastMCP boilerplate. Add your tools:
@@ -275,13 +275,13 @@ You can mix both — install some skills globally and others per-repo. `ai-kit s
 | `ai-kit install <target> --skills a,b` | Install only specific skills |
 | `ai-kit install <target> --mcps x,y` | Install only specific MCPs |
 | `ai-kit list` | List all available skills and MCPs |
-| `ai-kit add skill <name>` | Scaffold a new skill |
-| `ai-kit add skill <name> --from <source>` | Fetch a skill from the ecosystem |
-| `ai-kit add mcp <name>` | Scaffold a new MCP config |
-| `ai-kit add server <name>` | Scaffold a local MCP server (FastMCP) |
-| `ai-kit update` | Re-fetch all third-party skills |
-| `ai-kit update <name>` | Re-fetch a specific third-party skill |
-| `ai-kit detach <name>` | Detach a skill from its upstream source |
+| `ai-kit skill add <name>` | Scaffold a new skill |
+| `ai-kit skill add <name> --from <source>` | Fetch a skill from the ecosystem |
+| `ai-kit skill update` | Re-fetch all third-party skills |
+| `ai-kit skill update <name>` | Re-fetch a specific third-party skill |
+| `ai-kit skill detach <name>` | Detach a skill from its upstream source |
+| `ai-kit mcp add <name>` | Scaffold a new MCP config |
+| `ai-kit server add <name>` | Scaffold a local MCP server (FastMCP) |
 | `ai-kit sync` | Re-install to all previously tracked targets |
 
 ## Third-party skills
@@ -290,22 +290,22 @@ Not every skill is yours — some come from other people's repos. AI Kit tracks 
 
 ```bash
 # Add a third-party skill
-ai-kit add skill frontend-design --from anthropics/skills
+ai-kit skill add frontend-design --from anthropics/skills
 
 # Update all third-party skills from their origins
-ai-kit update
+ai-kit skill update
 
 # Update a specific one
-ai-kit update frontend-design
+ai-kit skill update frontend-design
 
 # Third-party skills are marked in the list
 ai-kit list
 
 # Customized a skill? Detach it so update won't overwrite your changes
-ai-kit detach frontend-design
+ai-kit skill detach frontend-design
 ```
 
-Under the hood this uses [Vercel's skills CLI](https://github.com/vercel-labs/skills) to fetch the skill. `--from` accepts any source format supported by that CLI, including GitHub shorthand like `anthropics/skills` and full URLs like `https://github.com/anthropics/skills`. A `source.json` is saved alongside the `SKILL.md` to record the origin. Running `ai-kit detach <name>` removes that `source.json`, converting it to a local skill that `update` will skip.
+Under the hood this uses [Vercel's skills CLI](https://github.com/vercel-labs/skills) to fetch the skill. `--from` accepts any source format supported by that CLI, including GitHub shorthand like `anthropics/skills` and full URLs like `https://github.com/anthropics/skills`. A `source.json` is saved alongside the `SKILL.md` to record the origin. Running `ai-kit skill detach <name>` removes that `source.json`, converting it to a local skill that `skill update` will skip.
 
 Browse available third-party skills at **[skills.sh](https://skills.sh)**.
 
