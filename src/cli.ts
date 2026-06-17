@@ -33,15 +33,14 @@ function showHelp(): void {
   AI Kit — Centralized AI Skills & MCP Manager
 
   Usage:
-    ai-kit install <target>                 Install skills and MCPs to a target
-    ai-kit list                             List available skills and MCPs
-    ai-kit sync                             Re-sync all tracked installations
-    ai-kit add skill <name>                 Scaffold a new skill
-    ai-kit add skill <name> --from <source> Fetch a skill from skills.sh / GitHub
-    ai-kit add mcp <name>                   Scaffold a new MCP config
-    ai-kit add server <name>                Scaffold a local MCP server (FastMCP)
-    ai-kit update [name]                    Update third-party skills from origin
-    ai-kit detach <name>                    Detach a skill from its upstream source
+    ai-kit install <target>                   Install skills and MCPs to a target
+    ai-kit list                               List available skills and MCPs
+    ai-kit sync                               Re-sync all tracked installations
+    ai-kit skill add <name> [--from <source>] Scaffold a new skill, or fetch one from skills.sh / GitHub
+    ai-kit skill update [name]                Update third-party skills from origin
+    ai-kit skill detach <name>                Detach a skill from its upstream source
+    ai-kit mcp add <name>                     Scaffold a new MCP config
+    ai-kit server add <name>                  Scaffold a local MCP server (FastMCP)
 
   Targets:
     claude, codex, pi, opencode, all
@@ -58,8 +57,8 @@ function showHelp(): void {
     ai-kit install all --global
     ai-kit install codex --skills review,humanizer --mcps playwright
     ai-kit install pi
-    ai-kit add skill frontend-design --from anthropics/skills
-    ai-kit update
+    ai-kit skill add frontend-design --from anthropics/skills
+    ai-kit skill update
     ai-kit sync
 `);
 }
@@ -102,32 +101,35 @@ try {
       break;
     }
 
-    case "add": {
-      const type = args[1];
-      const name = args[2];
-      if (!type || !name) {
-        log.error("Usage: ai-kit add <skill|mcp|server> <name>");
+    case "skill":
+    case "mcp":
+    case "server": {
+      const resource = command;
+      const verb = args[1];
+      if (verb === "add") {
+        const name = args[2];
+        if (!name) {
+          log.error(`Usage: ai-kit ${resource} add <name>`);
+          process.exit(1);
+        }
+        const addFlags = parseFlags(args.slice(3));
+        add(resource, name, {
+          from: typeof addFlags.from === "string" ? addFlags.from : undefined,
+        });
+      } else if (resource === "skill" && verb === "update") {
+        update(args[2]);
+      } else if (resource === "skill" && verb === "detach") {
+        const name = args[2];
+        if (!name) {
+          log.error("Usage: ai-kit skill detach <name>");
+          process.exit(1);
+        }
+        detach(name);
+      } else {
+        log.error(`Unknown command: ai-kit ${resource} ${verb ?? ""}`.trim());
+        showHelp();
         process.exit(1);
       }
-      const addFlags = parseFlags(args.slice(3));
-      add(type, name, {
-        from: typeof addFlags.from === "string" ? addFlags.from : undefined,
-      });
-      break;
-    }
-
-    case "update": {
-      update(args[1]);
-      break;
-    }
-
-    case "detach": {
-      const name = args[1];
-      if (!name) {
-        log.error("Usage: ai-kit detach <name>");
-        process.exit(1);
-      }
-      detach(name);
       break;
     }
 

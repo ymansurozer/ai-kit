@@ -7,7 +7,7 @@ export function list(): void {
 
   log.heading("Skills");
   if (skills.length === 0) {
-    log.dim("  No skills found. Run `ai-kit add skill <name>` to create one.");
+    log.dim("  No skills found. Run `ai-kit skill add <name>` to create one.");
   } else {
     for (const skill of skills) {
       const sourced = skill.source ? "  \x1b[2m(third-party)\x1b[0m" : "";
@@ -19,7 +19,7 @@ export function list(): void {
 
   log.heading("MCPs");
   if (mcps.length === 0) {
-    log.dim("  No MCPs found. Run `ai-kit add mcp <name>` to create one.");
+    log.dim("  No MCPs found. Run `ai-kit mcp add <name>` to create one.");
   } else {
     for (const mcp of mcps) {
       const local = mcp.isLocal ? "  \x1b[2m(local)\x1b[0m" : "";
