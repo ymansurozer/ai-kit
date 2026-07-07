@@ -1,16 +1,10 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import {
-  mkdtempSync,
-  mkdirSync,
-  writeFileSync,
-  readFileSync,
-  existsSync,
-  rmSync,
-} from "fs";
-import { join } from "path";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "fs";
 import { tmpdir } from "os";
-import { convertSkillToCommand, installClaude } from "./claude";
+import { join } from "path";
+
 import type { McpConfig, Skill } from "../config";
+import { convertSkillToCommand, installClaude } from "./claude";
 
 // --- convertSkillToCommand (pure) ---
 
@@ -164,9 +158,7 @@ describe("installClaude per-repo", () => {
 
   test("creates .mcp.json with mcpServers", () => {
     installClaude([], [makeMcp("playwright")], false, tmpDir);
-    const mcpJson = JSON.parse(
-      readFileSync(join(tmpDir, ".mcp.json"), "utf-8"),
-    );
+    const mcpJson = JSON.parse(readFileSync(join(tmpDir, ".mcp.json"), "utf-8"));
     expect(mcpJson.mcpServers.playwright).toBeDefined();
     expect(mcpJson.mcpServers.playwright.command).toBe("npx");
     expect(mcpJson.mcpServers.playwright.type).toBe("stdio");
@@ -182,9 +174,7 @@ describe("installClaude per-repo", () => {
       path: "",
     };
     installClaude([], [mcp], false, tmpDir);
-    const mcpJson = JSON.parse(
-      readFileSync(join(tmpDir, ".mcp.json"), "utf-8"),
-    );
+    const mcpJson = JSON.parse(readFileSync(join(tmpDir, ".mcp.json"), "utf-8"));
     expect(mcpJson.mcpServers.analytics.type).toBe("http");
     expect(mcpJson.mcpServers.analytics.url).toBe("https://mcp.example.com/analytics");
   });
@@ -204,12 +194,8 @@ describe("installClaude per-repo", () => {
     };
 
     installClaude([], [mcp], false, tmpDir);
-    const mcpJson = JSON.parse(
-      readFileSync(join(tmpDir, ".mcp.json"), "utf-8"),
-    );
-    expect(mcpJson.mcpServers["search-service"].env.SERVICE_USERNAME).toBe(
-      "${SERVICE_USERNAME}",
-    );
+    const mcpJson = JSON.parse(readFileSync(join(tmpDir, ".mcp.json"), "utf-8"));
+    expect(mcpJson.mcpServers["search-service"].env.SERVICE_USERNAME).toBe("${SERVICE_USERNAME}");
   });
 
   test("preserves HTTP MCP placeholders for Claude", () => {
@@ -226,12 +212,8 @@ describe("installClaude per-repo", () => {
     };
 
     installClaude([], [mcp], false, tmpDir);
-    const mcpJson = JSON.parse(
-      readFileSync(join(tmpDir, ".mcp.json"), "utf-8"),
-    );
-    expect(mcpJson.mcpServers.analytics.headers.Authorization).toBe(
-      "Bearer ${ANALYTICS_AUTH_TOKEN}",
-    );
+    const mcpJson = JSON.parse(readFileSync(join(tmpDir, ".mcp.json"), "utf-8"));
+    expect(mcpJson.mcpServers.analytics.headers.Authorization).toBe("Bearer ${ANALYTICS_AUTH_TOKEN}");
   });
 
   test("merges MCPs into existing .mcp.json", () => {
@@ -243,9 +225,7 @@ describe("installClaude per-repo", () => {
     );
 
     installClaude([], [makeMcp("new-one")], false, tmpDir);
-    const mcpJson = JSON.parse(
-      readFileSync(join(tmpDir, ".mcp.json"), "utf-8"),
-    );
+    const mcpJson = JSON.parse(readFileSync(join(tmpDir, ".mcp.json"), "utf-8"));
     expect(mcpJson.mcpServers.existing).toBeDefined();
     expect(mcpJson.mcpServers["new-one"]).toBeDefined();
   });
@@ -282,9 +262,7 @@ describe("installClaude per-repo", () => {
     };
 
     installClaude([], [mcp], false, tmpDir);
-    const mcpJson = JSON.parse(
-      readFileSync(join(tmpDir, ".mcp.json"), "utf-8"),
-    );
+    const mcpJson = JSON.parse(readFileSync(join(tmpDir, ".mcp.json"), "utf-8"));
     expect(mcpJson.mcpServers.playwright.command).toBe("npx");
     expect(mcpJson.mcpServers.playwright.args).toEqual(["-y", "@playwright/mcp"]);
     expect(mcpJson.mcpServers.playwright.env).toEqual({
@@ -326,9 +304,7 @@ describe("installClaude per-repo", () => {
     };
 
     installClaude([], [mcp], false, tmpDir);
-    const mcpJson = JSON.parse(
-      readFileSync(join(tmpDir, ".mcp.json"), "utf-8"),
-    );
+    const mcpJson = JSON.parse(readFileSync(join(tmpDir, ".mcp.json"), "utf-8"));
     expect(mcpJson.mcpServers.analytics.headers).toEqual({
       Authorization: "Bearer ${ANALYTICS_AUTH_TOKEN}",
     });
@@ -337,15 +313,10 @@ describe("installClaude per-repo", () => {
   });
 
   test("preserves non-mcpServers keys in .mcp.json", () => {
-    writeFileSync(
-      join(tmpDir, ".mcp.json"),
-      JSON.stringify({ customKey: true, mcpServers: {} }),
-    );
+    writeFileSync(join(tmpDir, ".mcp.json"), JSON.stringify({ customKey: true, mcpServers: {} }));
 
     installClaude([], [makeMcp("test")], false, tmpDir);
-    const mcpJson = JSON.parse(
-      readFileSync(join(tmpDir, ".mcp.json"), "utf-8"),
-    );
+    const mcpJson = JSON.parse(readFileSync(join(tmpDir, ".mcp.json"), "utf-8"));
     expect(mcpJson.customKey).toBe(true);
   });
 

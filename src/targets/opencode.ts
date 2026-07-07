@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { join } from "path";
 import { homedir } from "os";
+import { join } from "path";
+
 import {
   transformEnvVars,
   type Skill,
@@ -8,16 +9,11 @@ import {
   type StdioMcpTransportConfig,
   type HttpMcpTransportConfig,
 } from "../config";
-import { installSkillsToDir } from "./shared";
-import { mergeTargetConfig } from "./merge";
 import { log } from "../log";
+import { mergeTargetConfig } from "./merge";
+import { installSkillsToDir } from "./shared";
 
-export function installOpencode(
-  skills: Skill[],
-  mcps: McpConfig[],
-  global: boolean,
-  cwd: string,
-): void {
+export function installOpencode(skills: Skill[], mcps: McpConfig[], global: boolean, cwd: string): void {
   if (global) {
     installSkillsToDir(skills, join(homedir(), ".config", "opencode", "skills"), "~/.config/opencode/skills");
     installMcpsGlobal(mcps);
@@ -36,10 +32,7 @@ export function convertMcpConfig(mcp: McpConfig): Record<string, unknown> {
     };
   }
 
-  const config = transformEnvVars(
-    mcp.config,
-    (varName) => `{env:${varName}}`,
-  ) as StdioMcpTransportConfig;
+  const config = transformEnvVars(mcp.config, (varName) => `{env:${varName}}`) as StdioMcpTransportConfig;
   const entry: Record<string, unknown> = {
     ...config,
     type: "local",
@@ -54,37 +47,41 @@ export function convertMcpConfig(mcp: McpConfig): Record<string, unknown> {
 }
 
 function installMcpsLocal(mcps: McpConfig[], cwd: string): void {
-  if (mcps.length === 0) return;
+  if (mcps.length === 0) {
+    return;
+  }
   mergeMcpsJson(mcps, join(cwd, "opencode.json"), "opencode.json");
 }
 
 function installMcpsGlobal(mcps: McpConfig[]): void {
-  if (mcps.length === 0) return;
+  if (mcps.length === 0) {
+    return;
+  }
   const configPath = join(homedir(), ".config", "opencode", "opencode.json");
   mkdirSync(join(homedir(), ".config", "opencode"), { recursive: true });
   mergeMcpsJson(mcps, configPath, "~/.config/opencode/opencode.json");
 }
 
-function mergeMcpsJson(
-  mcps: McpConfig[],
-  configPath: string,
-  displayPath: string,
-): void {
+function mergeMcpsJson(mcps: McpConfig[], configPath: string, displayPath: string): void {
   let existing: Record<string, unknown> = {};
 
   if (existsSync(configPath)) {
     existing = JSON.parse(readFileSync(configPath, "utf-8"));
   }
 
-  if (!existing.mcp) existing.mcp = {};
+  if (!existing.mcp) {
+    existing.mcp = {};
+  }
   const servers = existing.mcp as Record<string, unknown>;
 
   for (const mcp of mcps) {
-    servers[mcp.name] = mergeTargetConfig(
-      servers[mcp.name],
-      convertMcpConfig(mcp),
-      ["type", "command", "environment", "url", "headers"],
-    );
+    servers[mcp.name] = mergeTargetConfig(servers[mcp.name], convertMcpConfig(mcp), [
+      "type",
+      "command",
+      "environment",
+      "url",
+      "headers",
+    ]);
     log.success(`Installed MCP ${mcp.name} → ${displayPath}`);
   }
 

@@ -247,42 +247,42 @@ Both skills and MCPs (including local servers) support two install scopes:
 
 ### Per-repo (default)
 
-| Target | Skills | MCPs |
-|--------|--------|------|
-| Claude | `.agents/skills/<name>/SKILL.md` | `.mcp.json` |
-| Codex | `.agents/skills/<name>/SKILL.md` | `.codex/config.toml` |
-| Pi | `.agents/skills/<name>/SKILL.md` | — |
-| OpenCode | `.opencode/skills/<name>/SKILL.md` | `opencode.json` |
+| Target   | Skills                             | MCPs                 |
+| -------- | ---------------------------------- | -------------------- |
+| Claude   | `.agents/skills/<name>/SKILL.md`   | `.mcp.json`          |
+| Codex    | `.agents/skills/<name>/SKILL.md`   | `.codex/config.toml` |
+| Pi       | `.agents/skills/<name>/SKILL.md`   | —                    |
+| OpenCode | `.opencode/skills/<name>/SKILL.md` | `opencode.json`      |
 
 ### Global (`--global`)
 
-| Target | Skills | MCPs |
-|--------|--------|------|
-| Claude | `~/.claude/commands/<name>.md` | `~/.claude.json` |
-| Codex | `~/.agents/skills/<name>/SKILL.md` | `~/.codex/config.toml` |
-| Pi | `~/.agents/skills/<name>/SKILL.md` | — |
+| Target   | Skills                                      | MCPs                               |
+| -------- | ------------------------------------------- | ---------------------------------- |
+| Claude   | `~/.claude/commands/<name>.md`              | `~/.claude.json`                   |
+| Codex    | `~/.agents/skills/<name>/SKILL.md`          | `~/.codex/config.toml`             |
+| Pi       | `~/.agents/skills/<name>/SKILL.md`          | —                                  |
 | OpenCode | `~/.config/opencode/skills/<name>/SKILL.md` | `~/.config/opencode/opencode.json` |
 
 You can mix both — install some skills globally and others per-repo. `ai-kit sync` re-installs to all tracked locations.
 
 ## All commands
 
-| Command | What it does |
-|---------|-------------|
-| `ai-kit install <target>` | Install skills + MCPs to a target |
-| `ai-kit install <target> --global` | Install globally instead of per-repo |
-| `ai-kit install all` | Fan out to every supported target |
-| `ai-kit install <target> --skills a,b` | Install only specific skills |
-| `ai-kit install <target> --mcps x,y` | Install only specific MCPs |
-| `ai-kit list` | List all available skills and MCPs |
-| `ai-kit skill add <name>` | Scaffold a new skill |
-| `ai-kit skill add <name> --from <source>` | Fetch a skill from the ecosystem |
-| `ai-kit skill update` | Re-fetch all third-party skills |
-| `ai-kit skill update <name>` | Re-fetch a specific third-party skill |
-| `ai-kit skill detach <name>` | Detach a skill from its upstream source |
-| `ai-kit mcp add <name>` | Scaffold a new MCP config |
-| `ai-kit server add <name>` | Scaffold a local MCP server (FastMCP) |
-| `ai-kit sync` | Re-install to all previously tracked targets |
+| Command                                   | What it does                                 |
+| ----------------------------------------- | -------------------------------------------- |
+| `ai-kit install <target>`                 | Install skills + MCPs to a target            |
+| `ai-kit install <target> --global`        | Install globally instead of per-repo         |
+| `ai-kit install all`                      | Fan out to every supported target            |
+| `ai-kit install <target> --skills a,b`    | Install only specific skills                 |
+| `ai-kit install <target> --mcps x,y`      | Install only specific MCPs                   |
+| `ai-kit list`                             | List all available skills and MCPs           |
+| `ai-kit skill add <name>`                 | Scaffold a new skill                         |
+| `ai-kit skill add <name> --from <source>` | Fetch a skill from the ecosystem             |
+| `ai-kit skill update`                     | Re-fetch all third-party skills              |
+| `ai-kit skill update <name>`              | Re-fetch a specific third-party skill        |
+| `ai-kit skill detach <name>`              | Detach a skill from its upstream source      |
+| `ai-kit mcp add <name>`                   | Scaffold a new MCP config                    |
+| `ai-kit server add <name>`                | Scaffold a local MCP server (FastMCP)        |
+| `ai-kit sync`                             | Re-install to all previously tracked targets |
 
 ## Third-party skills
 

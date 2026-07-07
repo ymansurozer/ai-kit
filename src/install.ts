@@ -1,11 +1,11 @@
 import type { Skill, McpConfig } from "./config";
 import { loadSkills, loadMcps } from "./config";
+import { log } from "./log";
 import { saveInstallation } from "./state";
 import { installClaude } from "./targets/claude";
 import { installCodex } from "./targets/codex";
-import { installPi } from "./targets/pi";
 import { installOpencode } from "./targets/opencode";
-import { log } from "./log";
+import { installPi } from "./targets/pi";
 
 type TargetInstaller = (skills: Skill[], mcps: McpConfig[], global: boolean, cwd: string) => void;
 
@@ -32,9 +32,7 @@ export function install(target: string, options: InstallOptions): void {
   }
 
   if (!TARGETS[target]) {
-    throw new Error(
-      `Unknown target: ${target}. Available: ${Object.keys(TARGETS).join(", ")}, all`,
-    );
+    throw new Error(`Unknown target: ${target}. Available: ${Object.keys(TARGETS).join(", ")}, all`);
   }
 
   let skills = loadSkills();
@@ -45,7 +43,9 @@ export function install(target: string, options: InstallOptions): void {
     const filtered = skills.filter((s) => requested.has(s.name));
     const found = new Set(filtered.map((s) => s.name));
     for (const name of requested) {
-      if (!found.has(name)) log.warn(`Skill not found: ${name}`);
+      if (!found.has(name)) {
+        log.warn(`Skill not found: ${name}`);
+      }
     }
     skills = filtered;
   }
@@ -55,7 +55,9 @@ export function install(target: string, options: InstallOptions): void {
     const filtered = mcps.filter((m) => requested.has(m.name));
     const found = new Set(filtered.map((m) => m.name));
     for (const name of requested) {
-      if (!found.has(name)) log.warn(`MCP not found: ${name}`);
+      if (!found.has(name)) {
+        log.warn(`MCP not found: ${name}`);
+      }
     }
     mcps = filtered;
   }
@@ -86,7 +88,5 @@ export function install(target: string, options: InstallOptions): void {
     installedAt: new Date().toISOString(),
   });
 
-  log.info(
-    `Installed ${skills.length} skill(s) and ${installedMcps.length} MCP(s)`,
-  );
+  log.info(`Installed ${skills.length} skill(s) and ${installedMcps.length} MCP(s)`);
 }
