@@ -11,9 +11,7 @@ export function list(): void {
   } else {
     for (const skill of skills) {
       const sourced = skill.source ? "  \x1b[2m(third-party)\x1b[0m" : "";
-      console.log(
-        `  ${skill.name}${skill.description ? `  — ${skill.description}` : ""}${sourced}`,
-      );
+      console.log(`  ${skill.name}${skill.description ? `  — ${skill.description}` : ""}${sourced}`);
     }
   }
 
@@ -23,9 +21,7 @@ export function list(): void {
   } else {
     for (const mcp of mcps) {
       const local = mcp.isLocal ? "  \x1b[2m(local)\x1b[0m" : "";
-      console.log(
-        `  ${mcp.name}${mcp.description ? `  — ${mcp.description}` : ""}${local}`,
-      );
+      console.log(`  ${mcp.name}${mcp.description ? `  — ${mcp.description}` : ""}${local}`);
     }
   }
 

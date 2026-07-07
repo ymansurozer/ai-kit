@@ -1,14 +1,10 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, mkdirSync } from "fs";
-import { join } from "path";
 import { tmpdir } from "os";
-import {
-  tomlString,
-  buildTomlSection,
-  removeTomlSection,
-  installCodex,
-} from "./codex";
+import { join } from "path";
+
 import type { McpConfig, Skill } from "../config";
+import { tomlString, buildTomlSection, removeTomlSection, installCodex } from "./codex";
 
 // --- tomlString (pure) ---
 
@@ -42,9 +38,7 @@ describe("buildTomlSection", () => {
     };
 
     const result = buildTomlSection(mcp);
-    expect(result).toBe(
-      `[mcp_servers.playwright]\ncommand = "npx"\nargs = ["-y", "@anthropic/mcp-playwright"]\n`,
-    );
+    expect(result).toBe(`[mcp_servers.playwright]\ncommand = "npx"\nargs = ["-y", "@anthropic/mcp-playwright"]\n`);
   });
 
   test("builds section with env sub-section", () => {
@@ -78,9 +72,7 @@ describe("buildTomlSection", () => {
     };
 
     const result = buildTomlSection(mcp);
-    expect(result).toContain(
-      'env_vars = ["SERVICE_USERNAME", "SERVICE_PASSWORD"]\n',
-    );
+    expect(result).toContain('env_vars = ["SERVICE_USERNAME", "SERVICE_PASSWORD"]\n');
     expect(result).not.toContain("[mcp_servers.search-service.env]");
   });
 
@@ -126,9 +118,7 @@ describe("buildTomlSection", () => {
     };
 
     const result = buildTomlSection(mcp);
-    expect(result).toBe(
-      '[mcp_servers.docs-search]\nurl = "https://mcp.example.com/docs"\n',
-    );
+    expect(result).toBe('[mcp_servers.docs-search]\nurl = "https://mcp.example.com/docs"\n');
   });
 
   test("moves remote env-backed headers into env_http_headers", () => {
@@ -318,10 +308,7 @@ describe("installCodex per-repo", () => {
 
   test("creates TOML config for MCPs", () => {
     installCodex([], [makeMcp("playwright")], false, tmpDir);
-    const toml = readFileSync(
-      join(tmpDir, ".codex", "config.toml"),
-      "utf-8",
-    );
+    const toml = readFileSync(join(tmpDir, ".codex", "config.toml"), "utf-8");
     expect(toml).toContain("[mcp_servers.playwright]");
     expect(toml).toContain('"npx"');
   });
@@ -329,10 +316,7 @@ describe("installCodex per-repo", () => {
   test("merges MCPs into existing TOML without clobbering", () => {
     const configDir = join(tmpDir, ".codex");
     mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.toml"),
-      '[settings]\nmodel = "gpt-4"\n',
-    );
+    writeFileSync(join(configDir, "config.toml"), '[settings]\nmodel = "gpt-4"\n');
 
     installCodex([], [makeMcp("new-server")], false, tmpDir);
     const toml = readFileSync(join(configDir, "config.toml"), "utf-8");
@@ -344,10 +328,7 @@ describe("installCodex per-repo", () => {
     installCodex([], [makeMcp("pw")], false, tmpDir);
     installCodex([], [makeMcp("pw")], false, tmpDir);
 
-    const toml = readFileSync(
-      join(tmpDir, ".codex", "config.toml"),
-      "utf-8",
-    );
+    const toml = readFileSync(join(tmpDir, ".codex", "config.toml"), "utf-8");
     const matches = toml.match(/\[mcp_servers\.pw\]/g);
     expect(matches).toHaveLength(1);
   });

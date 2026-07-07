@@ -1,18 +1,12 @@
-import { join } from "path";
 import { homedir } from "os";
-import type { Skill, McpConfig } from "../config";
-import { installSkillsToDir } from "./shared";
-import { log } from "../log";
+import { join } from "path";
 
-export function installPi(
-  skills: Skill[],
-  mcps: McpConfig[],
-  global: boolean,
-  cwd: string,
-): void {
-  const dir = global
-    ? join(homedir(), ".agents", "skills")
-    : join(cwd, ".agents", "skills");
+import type { Skill, McpConfig } from "../config";
+import { log } from "../log";
+import { installSkillsToDir } from "./shared";
+
+export function installPi(skills: Skill[], mcps: McpConfig[], global: boolean, cwd: string): void {
+  const dir = global ? join(homedir(), ".agents", "skills") : join(cwd, ".agents", "skills");
   const displayPrefix = global ? "~/.agents/skills" : ".agents/skills";
 
   installSkillsToDir(skills, dir, displayPrefix);

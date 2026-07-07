@@ -1,18 +1,14 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { join } from "path";
 import { homedir } from "os";
+import { join } from "path";
+
 import type { Skill, McpConfig } from "../config";
 import { parseFrontmatter } from "../config";
-import { installSkillsToDir, copySkillAssets } from "./shared";
-import { mergeTargetConfig } from "./merge";
 import { log } from "../log";
+import { mergeTargetConfig } from "./merge";
+import { installSkillsToDir, copySkillAssets } from "./shared";
 
-export function installClaude(
-  skills: Skill[],
-  mcps: McpConfig[],
-  global: boolean,
-  cwd: string,
-): void {
+export function installClaude(skills: Skill[], mcps: McpConfig[], global: boolean, cwd: string): void {
   if (global) {
     installSkillsGlobal(skills);
     installMcpsGlobal(mcps);
@@ -26,7 +22,9 @@ export function convertSkillToCommand(content: string): string {
   const normalized = content.replace(/\r\n/g, "\n");
   const { data, body } = parseFrontmatter(normalized);
   const entries = Object.entries(data).filter(([key]) => key !== "name");
-  if (entries.length === 0) return body;
+  if (entries.length === 0) {
+    return body;
+  }
   const lines = normalized.split("\n");
   const endIdx = lines.indexOf("---", 1);
   const kept = lines.slice(1, endIdx).filter((l) => {
@@ -52,7 +50,9 @@ function installSkillsGlobal(skills: Skill[]): void {
 }
 
 function installMcpsLocal(mcps: McpConfig[], cwd: string): void {
-  if (mcps.length === 0) return;
+  if (mcps.length === 0) {
+    return;
+  }
 
   const mcpJsonPath = join(cwd, ".mcp.json");
   let existing: Record<string, unknown> = {};
@@ -61,16 +61,21 @@ function installMcpsLocal(mcps: McpConfig[], cwd: string): void {
     existing = JSON.parse(readFileSync(mcpJsonPath, "utf-8"));
   }
 
-  if (!existing.mcpServers) existing.mcpServers = {};
+  if (!existing.mcpServers) {
+    existing.mcpServers = {};
+  }
   const servers = existing.mcpServers as Record<string, unknown>;
 
   for (const mcp of mcps) {
     const type = "url" in mcp.config ? "http" : "stdio";
-    servers[mcp.name] = mergeTargetConfig(
-      servers[mcp.name],
-      { ...mcp.config, type },
-      ["type", "command", "args", "env", "url", "headers"],
-    );
+    servers[mcp.name] = mergeTargetConfig(servers[mcp.name], { ...mcp.config, type }, [
+      "type",
+      "command",
+      "args",
+      "env",
+      "url",
+      "headers",
+    ]);
     log.success(`Installed MCP ${mcp.name} → .mcp.json`);
   }
 
@@ -78,7 +83,9 @@ function installMcpsLocal(mcps: McpConfig[], cwd: string): void {
 }
 
 function installMcpsGlobal(mcps: McpConfig[]): void {
-  if (mcps.length === 0) return;
+  if (mcps.length === 0) {
+    return;
+  }
 
   const claudeJsonPath = join(homedir(), ".claude.json");
   let existing: Record<string, unknown> = {};
@@ -87,16 +94,21 @@ function installMcpsGlobal(mcps: McpConfig[]): void {
     existing = JSON.parse(readFileSync(claudeJsonPath, "utf-8"));
   }
 
-  if (!existing.mcpServers) existing.mcpServers = {};
+  if (!existing.mcpServers) {
+    existing.mcpServers = {};
+  }
   const servers = existing.mcpServers as Record<string, unknown>;
 
   for (const mcp of mcps) {
     const type = "url" in mcp.config ? "http" : "stdio";
-    servers[mcp.name] = mergeTargetConfig(
-      servers[mcp.name],
-      { ...mcp.config, type },
-      ["type", "command", "args", "env", "url", "headers"],
-    );
+    servers[mcp.name] = mergeTargetConfig(servers[mcp.name], { ...mcp.config, type }, [
+      "type",
+      "command",
+      "args",
+      "env",
+      "url",
+      "headers",
+    ]);
     log.success(`Installed MCP ${mcp.name} → ~/.claude.json`);
   }
 

@@ -1,15 +1,8 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-  mkdtempSync,
-} from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
 import { spawnSync } from "child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, mkdtempSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { pathToFileURL } from "url";
 
 const repoRoot = join(import.meta.dir, "..");
@@ -104,10 +97,8 @@ describe("install", () => {
     const statePath = join(homeDir, ".ai-kit", "state.json");
     const state = JSON.parse(readFileSync(statePath, "utf-8"));
 
-    const targets = state.installations.map(
-      (i: { target: string }) => i.target,
-    );
-    expect(targets.sort()).toEqual(["claude", "codex", "opencode", "pi"]);
+    const targets = state.installations.map((i: { target: string }) => i.target);
+    expect(targets.toSorted()).toEqual(["claude", "codex", "opencode", "pi"]);
 
     for (const inst of state.installations) {
       expect(inst.global).toBe(true);

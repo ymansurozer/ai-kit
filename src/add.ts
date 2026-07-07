@@ -1,5 +1,6 @@
 import { existsSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
+
 import { SKILLS_DIR, MCPS_DIR, SERVERS_DIR } from "./config";
 import { fetchSkill } from "./fetch-skill";
 import { log } from "./log";
@@ -30,7 +31,9 @@ function addSkill(name: string, options: AddOptions): void {
 
   if (options.from) {
     const ok = fetchSkill(name, options.from);
-    if (!ok) throw new Error(`Failed to fetch skill "${name}" from ${options.from}`);
+    if (!ok) {
+      throw new Error(`Failed to fetch skill "${name}" from ${options.from}`);
+    }
     log.success(`Fetched skill: skills/${name}/SKILL.md`);
     log.dim(`  Source: ${options.from}`);
   } else {
@@ -112,11 +115,7 @@ server.start({ transportType: "stdio" });
 
   writeFileSync(
     join(dir, "server.json"),
-    JSON.stringify(
-      { description: "TODO — describe this MCP server" },
-      null,
-      2,
-    ) + "\n",
+    JSON.stringify({ description: "TODO — describe this MCP server" }, null, 2) + "\n",
   );
 
   log.success(`Created server: servers/${name}/`);

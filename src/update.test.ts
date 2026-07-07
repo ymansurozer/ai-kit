@@ -1,7 +1,8 @@
-import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync, readFileSync } from "fs";
-import { join } from "path";
 import { tmpdir } from "os";
+import { join } from "path";
+
 import { detach } from "./update";
 
 describe("detach", () => {
@@ -22,7 +23,10 @@ describe("detach", () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "SKILL.md"), `---\nname: ${name}\n---\nSkill content`);
     if (opts?.withSource) {
-      writeFileSync(join(dir, "source.json"), JSON.stringify({ from: "org/repo", skill: name, fetchedAt: "2026-01-01" }));
+      writeFileSync(
+        join(dir, "source.json"),
+        JSON.stringify({ from: "org/repo", skill: name, fetchedAt: "2026-01-01" }),
+      );
     }
   }
 

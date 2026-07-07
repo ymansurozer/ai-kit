@@ -1,5 +1,6 @@
 import { mkdirSync, cpSync, readdirSync } from "fs";
 import { join, dirname } from "path";
+
 import type { Skill } from "../config";
 import { log } from "../log";
 
@@ -9,8 +10,12 @@ export function copySkillAssets(skillPath: string, dest: string): void {
   const skillDir = dirname(skillPath);
   for (const entry of readdirSync(skillDir, { withFileTypes: true })) {
     const src = join(skillDir, entry.name);
-    if (src === skillPath) continue;
-    if (SKILL_INTERNAL_FILES.has(entry.name)) continue;
+    if (src === skillPath) {
+      continue;
+    }
+    if (SKILL_INTERNAL_FILES.has(entry.name)) {
+      continue;
+    }
     cpSync(src, join(dest, entry.name), { recursive: true });
   }
 }

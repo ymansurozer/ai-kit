@@ -1,5 +1,6 @@
 import { unlinkSync } from "fs";
 import { join, dirname } from "path";
+
 import { loadSkills, loadSkillsFrom } from "./config";
 import { fetchSkill } from "./fetch-skill";
 import { log } from "./log";
@@ -30,7 +31,9 @@ export function update(name?: string): void {
 
   let updated = 0;
   for (const skill of sourced) {
-    if (!skill.source) continue;
+    if (!skill.source) {
+      continue;
+    }
 
     const ok = fetchSkill(skill.name, skill.source.from);
     if (ok) {
