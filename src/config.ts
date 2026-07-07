@@ -46,25 +46,35 @@ const BEARER_ENV_VAR_PATTERN = /^Bearer \${([A-Za-z_][A-Za-z0-9_]*)\}$/;
 export function parseFrontmatter(content: string): { data: Record<string, string>; body: string } {
   const normalized = content.replace(/\r\n/g, "\n");
   const match = normalized.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!match) return { data: {}, body: normalized };
+  if (!match) {
+    return { data: {}, body: normalized };
+  }
 
   const data: Record<string, string> = {};
   for (const line of match[1].split("\n")) {
     const idx = line.indexOf(":");
-    if (idx === -1) continue;
+    if (idx === -1) {
+      continue;
+    }
     data[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
   }
   return { data, body: match[2] };
 }
 
 export function loadSkillsFrom(dir: string): Skill[] {
-  if (!existsSync(dir)) return [];
+  if (!existsSync(dir)) {
+    return [];
+  }
 
   const skills: Skill[] = [];
   for (const d of readdirSync(dir, { withFileTypes: true })) {
-    if (!d.isDirectory()) continue;
+    if (!d.isDirectory()) {
+      continue;
+    }
     const skillPath = join(dir, d.name, "SKILL.md");
-    if (!existsSync(skillPath)) continue;
+    if (!existsSync(skillPath)) {
+      continue;
+    }
 
     const content = readFileSync(skillPath, "utf-8");
     const { data, body } = parseFrontmatter(content);
@@ -101,16 +111,17 @@ export function containsEnvPlaceholderSyntax(value: string): boolean {
   return value.includes("${");
 }
 
-export function transformEnvVars<T>(
-  value: T,
-  transform: (varName: string) => string,
-): T {
+export function transformEnvVars<T>(value: T, transform: (varName: string) => string): T {
   if (typeof value === "string") {
     const envVar = extractEnvVar(value);
-    if (envVar) return transform(envVar) as T;
+    if (envVar) {
+      return transform(envVar) as T;
+    }
 
     const bearerEnvVar = extractBearerTokenEnvVar(value);
-    if (bearerEnvVar) return `Bearer ${transform(bearerEnvVar)}` as T;
+    if (bearerEnvVar) {
+      return `Bearer ${transform(bearerEnvVar)}` as T;
+    }
 
     return value;
   }
@@ -121,10 +132,7 @@ export function transformEnvVars<T>(
 
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        key,
-        transformEnvVars(item, transform),
-      ]),
+      Object.entries(value).map(([key, item]) => [key, transformEnvVars(item, transform)]),
     ) as T;
   }
 
@@ -132,7 +140,9 @@ export function transformEnvVars<T>(
 }
 
 export function loadMcpsFrom(dir: string): McpConfig[] {
-  if (!existsSync(dir)) return [];
+  if (!existsSync(dir)) {
+    return [];
+  }
 
   return readdirSync(dir)
     .filter((f) => f.endsWith(".json"))
@@ -140,13 +150,8 @@ export function loadMcpsFrom(dir: string): McpConfig[] {
       const mcpPath = join(dir, f);
       const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
       const config = content.config as Record<string, unknown> | undefined;
-      if (
-        !config ||
-        (typeof config.command !== "string" && typeof config.url !== "string")
-      ) {
-        throw new Error(
-          `Invalid MCP config in ${f}: missing "config.command" or "config.url"`,
-        );
+      if (!config || (typeof config.command !== "string" && typeof config.url !== "string")) {
+        throw new Error(`Invalid MCP config in ${f}: missing "config.command" or "config.url"`);
       }
       return {
         name: f.replace(/\.json$/, ""),
@@ -158,24 +163,30 @@ export function loadMcpsFrom(dir: string): McpConfig[] {
 }
 
 export function loadServersFrom(dir: string): McpConfig[] {
-  if (!existsSync(dir)) return [];
+  if (!existsSync(dir)) {
+    return [];
+  }
 
   const servers: McpConfig[] = [];
   for (const d of readdirSync(dir, { withFileTypes: true })) {
-    if (!d.isDirectory()) continue;
+    if (!d.isDirectory()) {
+      continue;
+    }
     const entryPath = join(dir, d.name, "index.ts");
-    if (!existsSync(entryPath)) continue;
+    if (!existsSync(entryPath)) {
+      continue;
+    }
 
     const metaPath = join(dir, d.name, "server.json");
-    const meta = existsSync(metaPath)
-      ? JSON.parse(readFileSync(metaPath, "utf-8"))
-      : {};
+    const meta = existsSync(metaPath) ? JSON.parse(readFileSync(metaPath, "utf-8")) : {};
 
     const config: McpConfig["config"] = {
       command: "bun",
       args: ["run", entryPath],
     };
-    if (meta.env) config.env = meta.env;
+    if (meta.env) {
+      config.env = meta.env;
+    }
 
     servers.push({
       name: d.name,

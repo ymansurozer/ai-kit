@@ -1,16 +1,10 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import {
-  mkdtempSync,
-  mkdirSync,
-  writeFileSync,
-  readFileSync,
-  existsSync,
-  rmSync,
-} from "fs";
-import { join } from "path";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "fs";
 import { tmpdir } from "os";
-import { convertMcpConfig, installOpencode } from "./opencode";
+import { join } from "path";
+
 import type { McpConfig, Skill } from "../config";
+import { convertMcpConfig, installOpencode } from "./opencode";
 
 // --- convertMcpConfig (pure) ---
 
@@ -179,9 +173,7 @@ describe("installOpencode per-repo", () => {
 
   test("creates opencode.json with mcp section", () => {
     installOpencode([], [makeMcp("playwright")], false, tmpDir);
-    const config = JSON.parse(
-      readFileSync(join(tmpDir, "opencode.json"), "utf-8"),
-    );
+    const config = JSON.parse(readFileSync(join(tmpDir, "opencode.json"), "utf-8"));
     expect(config.mcp.playwright).toBeDefined();
     expect(config.mcp.playwright.type).toBe("local");
     expect(config.mcp.playwright.command).toEqual(["npx", "-y", "@test/playwright"]);
@@ -196,9 +188,7 @@ describe("installOpencode per-repo", () => {
     );
 
     installOpencode([], [makeMcp("new-one")], false, tmpDir);
-    const config = JSON.parse(
-      readFileSync(join(tmpDir, "opencode.json"), "utf-8"),
-    );
+    const config = JSON.parse(readFileSync(join(tmpDir, "opencode.json"), "utf-8"));
     expect(config.mcp.existing).toBeDefined();
     expect(config.mcp["new-one"]).toBeDefined();
   });
@@ -235,9 +225,7 @@ describe("installOpencode per-repo", () => {
     };
 
     installOpencode([], [mcp], false, tmpDir);
-    const config = JSON.parse(
-      readFileSync(join(tmpDir, "opencode.json"), "utf-8"),
-    );
+    const config = JSON.parse(readFileSync(join(tmpDir, "opencode.json"), "utf-8"));
     expect(config.mcp.playwright.command).toEqual(["npx", "-y", "@playwright/mcp"]);
     expect(config.mcp.playwright.environment).toEqual({
       SERVICE_USERNAME: "{env:SERVICE_USERNAME}",
@@ -279,9 +267,7 @@ describe("installOpencode per-repo", () => {
     };
 
     installOpencode([], [mcp], false, tmpDir);
-    const config = JSON.parse(
-      readFileSync(join(tmpDir, "opencode.json"), "utf-8"),
-    );
+    const config = JSON.parse(readFileSync(join(tmpDir, "opencode.json"), "utf-8"));
     expect(config.mcp.analytics.url).toBe("https://mcp.example.com/analytics");
     expect(config.mcp.analytics.headers).toEqual({
       Authorization: "Bearer {env:ANALYTICS_API_TOKEN}",
@@ -291,15 +277,10 @@ describe("installOpencode per-repo", () => {
   });
 
   test("preserves non-mcp keys in opencode.json", () => {
-    writeFileSync(
-      join(tmpDir, "opencode.json"),
-      JSON.stringify({ theme: "dark", mcp: {} }),
-    );
+    writeFileSync(join(tmpDir, "opencode.json"), JSON.stringify({ theme: "dark", mcp: {} }));
 
     installOpencode([], [makeMcp("test")], false, tmpDir);
-    const config = JSON.parse(
-      readFileSync(join(tmpDir, "opencode.json"), "utf-8"),
-    );
+    const config = JSON.parse(readFileSync(join(tmpDir, "opencode.json"), "utf-8"));
     expect(config.theme).toBe("dark");
   });
 
@@ -312,9 +293,7 @@ describe("installOpencode per-repo", () => {
     };
 
     installOpencode([], [mcp], false, tmpDir);
-    const config = JSON.parse(
-      readFileSync(join(tmpDir, "opencode.json"), "utf-8"),
-    );
+    const config = JSON.parse(readFileSync(join(tmpDir, "opencode.json"), "utf-8"));
     expect(config.mcp["with-env"].environment).toEqual({ KEY: "val" });
     expect(config.mcp["with-env"].command).toEqual(["node", "server.js"]);
   });
@@ -335,9 +314,7 @@ describe("installOpencode per-repo", () => {
     installOpencode([], [mcp], false, tmpDir);
     const raw = readFileSync(join(tmpDir, "opencode.json"), "utf-8");
     const config = JSON.parse(raw);
-    expect(config.mcp.analytics.headers.Authorization).toBe(
-      "Bearer {env:ANALYTICS_API_TOKEN}",
-    );
+    expect(config.mcp.analytics.headers.Authorization).toBe("Bearer {env:ANALYTICS_API_TOKEN}");
     expect(raw).not.toContain("Bearer ${ANALYTICS_API_TOKEN}");
   });
 

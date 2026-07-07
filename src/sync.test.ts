@@ -1,15 +1,8 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-  mkdtempSync,
-} from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
 import { spawnSync } from "child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, mkdtempSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { pathToFileURL } from "url";
 
 const repoRoot = join(import.meta.dir, "..");
@@ -44,14 +37,8 @@ describe("sync", () => {
     mkdirSync(selectedSkillDir, { recursive: true });
     mkdirSync(extraSkillDir, { recursive: true });
 
-    writeFileSync(
-      join(selectedSkillDir, "SKILL.md"),
-      `---\nname: ${selectedSkillName}\n---\n# ${selectedSkillName}\n`,
-    );
-    writeFileSync(
-      join(extraSkillDir, "SKILL.md"),
-      `---\nname: ${extraSkillName}\n---\n# ${extraSkillName}\n`,
-    );
+    writeFileSync(join(selectedSkillDir, "SKILL.md"), `---\nname: ${selectedSkillName}\n---\n# ${selectedSkillName}\n`);
+    writeFileSync(join(extraSkillDir, "SKILL.md"), `---\nname: ${extraSkillName}\n---\n# ${extraSkillName}\n`);
 
     writeFileSync(
       selectedMcpPath,
@@ -120,12 +107,8 @@ describe("sync", () => {
     });
 
     expect(result.status).toBe(0);
-    expect(
-      existsSync(join(projectDir, ".agents", "skills", selectedSkillName, "SKILL.md")),
-    ).toBe(true);
-    expect(
-      existsSync(join(projectDir, ".agents", "skills", extraSkillName, "SKILL.md")),
-    ).toBe(false);
+    expect(existsSync(join(projectDir, ".agents", "skills", selectedSkillName, "SKILL.md"))).toBe(true);
+    expect(existsSync(join(projectDir, ".agents", "skills", extraSkillName, "SKILL.md"))).toBe(false);
 
     const toml = readFileSync(join(projectDir, ".codex", "config.toml"), "utf-8");
     expect(toml).toContain(`[mcp_servers.${selectedMcpName}]`);

@@ -1,7 +1,8 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
-import { join } from "path";
 import { tmpdir } from "os";
+import { join } from "path";
+
 import {
   parseFrontmatter,
   loadSkillsFrom,
@@ -145,10 +146,7 @@ description: A test skill
   test("skips directories without SKILL.md", () => {
     mkdirSync(join(tmpDir, "empty-dir"), { recursive: true });
     mkdirSync(join(tmpDir, "valid-skill"), { recursive: true });
-    writeFileSync(
-      join(tmpDir, "valid-skill", "SKILL.md"),
-      "---\nname: valid\n---\nBody",
-    );
+    writeFileSync(join(tmpDir, "valid-skill", "SKILL.md"), "---\nname: valid\n---\nBody");
 
     const skills = loadSkillsFrom(tmpDir);
     expect(skills).toHaveLength(1);
@@ -157,10 +155,7 @@ description: A test skill
 
   test("loads source.json when present", () => {
     mkdirSync(join(tmpDir, "sourced"), { recursive: true });
-    writeFileSync(
-      join(tmpDir, "sourced", "SKILL.md"),
-      "---\nname: sourced\n---\nBody",
-    );
+    writeFileSync(join(tmpDir, "sourced", "SKILL.md"), "---\nname: sourced\n---\nBody");
     writeFileSync(
       join(tmpDir, "sourced", "source.json"),
       JSON.stringify({
@@ -182,10 +177,7 @@ description: A test skill
 
   test("falls back to directory name when frontmatter has no name", () => {
     mkdirSync(join(tmpDir, "dir-name"), { recursive: true });
-    writeFileSync(
-      join(tmpDir, "dir-name", "SKILL.md"),
-      "---\ndescription: no name field\n---\nBody",
-    );
+    writeFileSync(join(tmpDir, "dir-name", "SKILL.md"), "---\ndescription: no name field\n---\nBody");
 
     const skills = loadSkillsFrom(tmpDir);
     expect(skills[0].name).toBe("dir-name");
@@ -252,9 +244,7 @@ describe("loadMcpsFrom", () => {
 
     const mcps = loadMcpsFrom(tmpDir);
     expect(mcps).toHaveLength(1);
-    expect((mcps[0].config.headers as Record<string, string>).Authorization).toBe(
-      "Bearer ${ANALYTICS_AUTH_TOKEN}",
-    );
+    expect((mcps[0].config.headers as Record<string, string>).Authorization).toBe("Bearer ${ANALYTICS_AUTH_TOKEN}");
   });
 
   test("loads stdio placeholder-bearing MCP configs without resolving them", () => {
@@ -274,17 +264,12 @@ describe("loadMcpsFrom", () => {
 
     const mcps = loadMcpsFrom(tmpDir);
     expect(mcps).toHaveLength(1);
-    expect((mcps[0].config.env as Record<string, string>).SERVICE_USERNAME).toBe(
-      "${SERVICE_USERNAME}",
-    );
+    expect((mcps[0].config.env as Record<string, string>).SERVICE_USERNAME).toBe("${SERVICE_USERNAME}");
   });
 
   test("skips non-JSON files", () => {
     writeFileSync(join(tmpDir, "readme.txt"), "not json");
-    writeFileSync(
-      join(tmpDir, "valid.json"),
-      JSON.stringify({ description: "test", config: { command: "echo" } }),
-    );
+    writeFileSync(join(tmpDir, "valid.json"), JSON.stringify({ description: "test", config: { command: "echo" } }));
 
     const mcps = loadMcpsFrom(tmpDir);
     expect(mcps).toHaveLength(1);
@@ -313,29 +298,20 @@ describe("loadServersFrom", () => {
   test("loads server with index.ts and server.json", () => {
     mkdirSync(join(tmpDir, "my-server"), { recursive: true });
     writeFileSync(join(tmpDir, "my-server", "index.ts"), "// server code");
-    writeFileSync(
-      join(tmpDir, "my-server", "server.json"),
-      JSON.stringify({ description: "My server" }),
-    );
+    writeFileSync(join(tmpDir, "my-server", "server.json"), JSON.stringify({ description: "My server" }));
 
     const servers = loadServersFrom(tmpDir);
     expect(servers).toHaveLength(1);
     expect(servers[0].name).toBe("my-server");
     expect(servers[0].description).toBe("My server");
     expect(servers[0].config.command).toBe("bun");
-    expect(servers[0].config.args).toEqual([
-      "run",
-      join(tmpDir, "my-server", "index.ts"),
-    ]);
+    expect(servers[0].config.args).toEqual(["run", join(tmpDir, "my-server", "index.ts")]);
     expect(servers[0].isLocal).toBe(true);
   });
 
   test("skips directories without index.ts", () => {
     mkdirSync(join(tmpDir, "no-entry"), { recursive: true });
-    writeFileSync(
-      join(tmpDir, "no-entry", "server.json"),
-      JSON.stringify({ description: "missing entry" }),
-    );
+    writeFileSync(join(tmpDir, "no-entry", "server.json"), JSON.stringify({ description: "missing entry" }));
 
     const servers = loadServersFrom(tmpDir);
     expect(servers).toEqual([]);

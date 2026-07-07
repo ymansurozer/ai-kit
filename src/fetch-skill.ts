@@ -1,15 +1,8 @@
 import { spawnSync } from "child_process";
-import {
-  mkdtempSync,
-  readdirSync,
-  existsSync,
-  cpSync,
-  rmSync,
-  mkdirSync,
-  writeFileSync,
-} from "fs";
-import { dirname, join } from "path";
+import { mkdtempSync, readdirSync, existsSync, cpSync, rmSync, mkdirSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
+import { dirname, join } from "path";
+
 import { SKILLS_DIR } from "./config";
 import { log } from "./log";
 
@@ -17,20 +10,16 @@ import { log } from "./log";
  * Fetch a skill using Vercel's skills CLI (`bunx skills add`).
  * Runs in a temp directory, then copies the SKILL.md into our skills/ folder.
  */
-export function fetchSkill(
-  name: string,
-  from: string,
-): boolean {
+export function fetchSkill(name: string, from: string): boolean {
   const tmpDir = mkdtempSync(join(tmpdir(), "ai-kit-"));
 
   try {
     log.info(`Fetching ${name} from ${from}`);
 
-    const result = spawnSync(
-      "bunx",
-      ["skills", "add", from, "--skill", name, "--copy", "-y"],
-      { cwd: tmpDir, stdio: "pipe" },
-    );
+    const result = spawnSync("bunx", ["skills", "add", from, "--skill", name, "--copy", "-y"], {
+      cwd: tmpDir,
+      stdio: "pipe",
+    });
 
     if (result.status !== 0) {
       const stderr = result.stderr?.toString().trim() || "Unknown error";
@@ -50,11 +39,7 @@ export function fetchSkill(
 
     writeFileSync(
       join(destDir, "source.json"),
-      JSON.stringify(
-        { from, skill: name, fetchedAt: new Date().toISOString() },
-        null,
-        2,
-      ) + "\n",
+      JSON.stringify({ from, skill: name, fetchedAt: new Date().toISOString() }, null, 2) + "\n",
     );
 
     return true;
@@ -71,7 +56,9 @@ function findSkillMd(baseDir: string, name: string): string | null {
   ];
 
   for (const path of candidates) {
-    if (existsSync(path)) return path;
+    if (existsSync(path)) {
+      return path;
+    }
   }
 
   // Fallback: recursive search for any SKILL.md
@@ -83,10 +70,14 @@ const SKIP_DIRS = new Set(["node_modules", ".git"]);
 function findFile(dir: string, filename: string): string | null {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
-    if (entry.isFile() && entry.name === filename) return full;
+    if (entry.isFile() && entry.name === filename) {
+      return full;
+    }
     if (entry.isDirectory() && !SKIP_DIRS.has(entry.name)) {
       const found = findFile(full, filename);
-      if (found) return found;
+      if (found) {
+        return found;
+      }
     }
   }
   return null;

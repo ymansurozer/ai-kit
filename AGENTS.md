@@ -19,12 +19,14 @@ bun link              # link ai-kit as global CLI command
 **Entry point:** `src/cli.ts` — parses args via `parseFlags()`, routes to command handlers. Wrapped in `import.meta.main` guard so imports don't trigger side effects.
 
 **Config loading (`src/config.ts`):**
+
 - `loadSkills()` — scans `skills/` for subdirs with `SKILL.md`, parses YAML frontmatter
 - `loadMcps()` — combines external MCPs from `mcps/*.json` + local servers from `servers/*/index.ts`
 - `loadServersFrom()` — scans `servers/`, generates McpConfig with `command: "bun", args: ["run", "<absolute-path>"]` and `isLocal: true`
 - All loading functions have a `*From(dir)` variant for testability
 
 **Install targets (`src/targets/`):**
+
 - Each target exports `install<Target>(skills, mcps, global, cwd)`
 - `claude.ts` — per-repo: `.agents/skills/` + `.mcp.json`; global: `~/.claude/commands/` (frontmatter name stripped) + `~/.claude.json`
 - `codex.ts` — per-repo: `.agents/skills/` + `.codex/config.toml`; global: `~/.agents/skills/` + `~/.codex/config.toml`
@@ -46,6 +48,7 @@ bun link              # link ai-kit as global CLI command
 ## Testing patterns
 
 Bun native test runner. Two patterns:
+
 1. **Pure function tests** — `parseFrontmatter`, `parseFlags`, `tomlString`, `buildTomlSection`, `removeTomlSection`, `convertSkillToCommand`
 2. **Temp directory tests** — `mkdtempSync` in `beforeEach`, `rmSync` in `afterEach`. Loading functions and target installers use their `*From(dir)` / `cwd` parameter variants.
 

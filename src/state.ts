@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
 import { homedir } from "os";
+import { join, dirname } from "path";
 
 export const STATE_DIR = join(homedir(), ".ai-kit");
 export const STATE_PATH = join(STATE_DIR, "state.json");
@@ -19,7 +19,9 @@ export interface State {
 }
 
 export function readStateFrom(path: string): State {
-  if (!existsSync(path)) return { installations: [] };
+  if (!existsSync(path)) {
+    return { installations: [] };
+  }
   return JSON.parse(readFileSync(path, "utf-8"));
 }
 
@@ -32,10 +34,7 @@ export function saveInstallationTo(path: string, installation: Installation): vo
   const state = readStateFrom(path);
 
   const idx = state.installations.findIndex(
-    (i) =>
-      i.target === installation.target &&
-      i.global === installation.global &&
-      i.path === installation.path,
+    (i) => i.target === installation.target && i.global === installation.global && i.path === installation.path,
   );
 
   if (idx >= 0) {

@@ -1,7 +1,8 @@
 import { existsSync } from "fs";
-import { readState } from "./state";
+
 import { install } from "./install";
 import { log } from "./log";
+import { readState } from "./state";
 
 export function sync(): void {
   const state = readState();
@@ -14,9 +15,7 @@ export function sync(): void {
   log.heading("Syncing all tracked installations");
 
   for (const inst of state.installations) {
-    const label = inst.global
-      ? `${inst.target} (global)`
-      : `${inst.target} → ${inst.path}`;
+    const label = inst.global ? `${inst.target} (global)` : `${inst.target} → ${inst.path}`;
 
     if (!inst.global && inst.path && !existsSync(inst.path)) {
       log.warn(`Skipping ${label} (directory not found)`);
