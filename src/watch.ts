@@ -180,7 +180,11 @@ export function realGit(cwd: string): Git {
       gitOrThrow(["fetch", "--quiet"], cwd);
     },
     isClean() {
-      return gitOrThrow(["status", "--porcelain"], cwd).trim() === "";
+      // Only modifications to tracked files count as "dirty". Untracked files
+      // (`-uno`) are ignored: a fast-forward pull succeeds fine alongside unrelated
+      // untracked work, and a genuine filename collision makes the pull itself fail,
+      // which lands safely in the existing failure/backoff path.
+      return gitOrThrow(["status", "--porcelain", "-uno"], cwd).trim() === "";
     },
     tracking() {
       // No upstream configured for the current branch.
@@ -234,8 +238,9 @@ export function runTick(ctx: TickContext, memo: Memo, tick: number): Memo {
     } else {
       log.info("Retrying reinstall to all tracked targets");
     }
+    // The install step (`sync()`) emits its own "Sync complete" line, so we don't
+    // duplicate it here — the pre-action line above is what makes the watch cycle distinct.
     ctx.install();
-    log.success("Sync complete");
     return recordInstallSuccess();
   } catch (err) {
     const outcome = recordInstallFailure(memo, tick, err);
