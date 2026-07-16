@@ -299,7 +299,7 @@ On each tick it fetches. When the working tree is clean **and** the branch is st
 
 Some states are reported and skipped, never resolved automatically:
 
-- **Dirty tree** — skipped so your uncommitted work is never touched; reported once, then it resumes on its own when the tree is clean again.
+- **Dirty tree** — if tracked files have uncommitted changes, the sync is skipped so your work is never touched; reported once, then it resumes on its own when the tree is clean again. Untracked files (e.g. WIP skill directories you haven't committed) don't count as dirty — a fast-forward pull coexists with them fine, and a real filename collision surfaces as a pull failure that the backoff path handles.
 - **Diverged branch** — if a pull wouldn't fast-forward, it stops and reports; it never merges, rebases, or stashes for you.
 - **No upstream / fetch failure** — reported once and retried on later ticks (a laptop going offline won't crash or spam the loop).
 - **Install failure** — reported, then backed off rather than retried hot; the next successful sync clears the state.

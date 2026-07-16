@@ -251,19 +251,37 @@ describe("integration: real clones", () => {
     expect(realGit(cloneB).tracking()).toBe("up-to-date");
   });
 
-  test("a dirty tree in clone B skips the sync", () => {
+  test("an uncommitted change to a tracked file in clone B skips the sync", () => {
     writeFileSync(join(cloneA, "skill.md"), "new skill\n");
     g(cloneA, "add", ".");
     g(cloneA, "commit", "-m", "add skill");
     g(cloneA, "push");
 
-    // Local uncommitted change in clone B.
-    writeFileSync(join(cloneB, "scratch.txt"), "wip\n");
+    // Uncommitted change to a tracked file in clone B.
+    writeFileSync(join(cloneB, "README.md"), "local edit\n");
+    expect(realGit(cloneB).isClean()).toBe(false);
 
     let installs = 0;
     const ctx = { git: realGit(cloneB), install: () => installs++ };
     runTick(ctx, initialMemo(), 0);
     expect(installs).toBe(0);
     expect(realGit(cloneB).tracking()).toBe("behind");
+  });
+
+  test("untracked-only files do not count as dirty — the pull proceeds", () => {
+    writeFileSync(join(cloneA, "skill.md"), "new skill\n");
+    g(cloneA, "add", ".");
+    g(cloneA, "commit", "-m", "add skill");
+    g(cloneA, "push");
+
+    // Untracked WIP in clone B that doesn't collide with anything upstream.
+    writeFileSync(join(cloneB, "wip-skill.md"), "work in progress\n");
+    expect(realGit(cloneB).isClean()).toBe(true);
+
+    let installs = 0;
+    const ctx = { git: realGit(cloneB), install: () => installs++ };
+    runTick(ctx, initialMemo(), 0);
+    expect(installs).toBe(1);
+    expect(realGit(cloneB).tracking()).toBe("up-to-date");
   });
 });
