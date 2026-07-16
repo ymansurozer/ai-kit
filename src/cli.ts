@@ -6,10 +6,11 @@ import { list } from "./list";
 import { log } from "./log";
 import { sync } from "./sync";
 import { update, detach } from "./update";
+import { watch } from "./watch";
 
 const args = process.argv.slice(2);
 const command = args[0];
-const VALUE_FLAGS = new Set(["skills", "mcps", "from"]);
+const VALUE_FLAGS = new Set(["skills", "mcps", "from", "interval"]);
 
 export function parseFlags(argv: string[]): Record<string, string | boolean> {
   const flags: Record<string, string | boolean> = {};
@@ -36,6 +37,7 @@ function showHelp(): void {
     ai-kit install <target>                   Install skills and MCPs to a target
     ai-kit list                               List available skills and MCPs
     ai-kit sync                               Re-sync all tracked installations
+    ai-kit watch                              Watch the repo and auto-sync on new commits
     ai-kit skill add <name> [--from <source>] Scaffold a new skill, or fetch one from skills.sh / GitHub
     ai-kit skill update [name]                Update third-party skills from origin
     ai-kit skill detach <name>                Detach a skill from its upstream source
@@ -50,6 +52,7 @@ function showHelp(): void {
     --skills <names>            Cherry-pick skills (comma-separated)
     --mcps <names>              Cherry-pick MCPs (comma-separated)
     --from <source>             External skill source (GitHub shorthand), e.g. anthropics/skills
+    --interval <seconds>        Poll interval for watch, in seconds (default 45)
 
   Examples:
     ai-kit install claude
@@ -93,6 +96,19 @@ if (import.meta.main) {
 
       case "sync": {
         sync();
+        break;
+      }
+
+      case "watch": {
+        const flags = parseFlags(args.slice(1));
+        const interval = typeof flags.interval === "string" ? Number(flags.interval) : NaN;
+        if (typeof flags.interval === "string" && (!Number.isFinite(interval) || interval <= 0)) {
+          log.error("--interval must be a positive number of seconds");
+          process.exit(1);
+        }
+        watch({
+          intervalMs: Number.isFinite(interval) ? interval * 1000 : undefined,
+        });
         break;
       }
 

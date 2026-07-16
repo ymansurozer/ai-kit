@@ -283,6 +283,28 @@ You can mix both — install some skills globally and others per-repo. `ai-kit s
 | `ai-kit mcp add <name>`                   | Scaffold a new MCP config                    |
 | `ai-kit server add <name>`                | Scaffold a local MCP server (FastMCP)        |
 | `ai-kit sync`                             | Re-install to all previously tracked targets |
+| `ai-kit watch`                            | Watch the repo and auto-sync on new commits  |
+| `ai-kit watch --interval <seconds>`       | Set the poll interval (default 45s)          |
+
+## Keeping machines in sync
+
+If you work across more than one machine, `ai-kit watch` keeps them all current with your central repo automatically. Run it from your AI Kit checkout:
+
+```bash
+ai-kit watch                    # poll every 45s (default)
+ai-kit watch --interval 30      # poll every 30s
+```
+
+On each tick it fetches. When the working tree is clean **and** the branch is strictly behind its upstream, it fast-forwards (`git pull --ff-only`) and then reinstalls — to **every** target this machine has already installed, never a subset. That parity rule matters: a watcher running on several machines reinstalls exactly the set each machine tracks in `~/.ai-kit/state.json`, so no target silently drifts. Run `ai-kit install all --global` once on a new machine and `watch` keeps all four in step from then on.
+
+Some states are reported and skipped, never resolved automatically:
+
+- **Dirty tree** — skipped so your uncommitted work is never touched; reported once, then it resumes on its own when the tree is clean again.
+- **Diverged branch** — if a pull wouldn't fast-forward, it stops and reports; it never merges, rebases, or stashes for you.
+- **No upstream / fetch failure** — reported once and retried on later ticks (a laptop going offline won't crash or spam the loop).
+- **Install failure** — reported, then backed off rather than retried hot; the next successful sync clears the state.
+
+Because it runs indefinitely, `watch` is best managed as a background service (systemd on Linux, launchd on macOS) so it starts on boot.
 
 ## Third-party skills
 
