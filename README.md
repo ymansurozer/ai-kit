@@ -285,6 +285,9 @@ You can mix both — install some skills globally and others per-repo. `ai-kit s
 | `ai-kit sync`                             | Re-install to all previously tracked targets |
 | `ai-kit watch`                            | Watch the repo and auto-sync on new commits  |
 | `ai-kit watch --interval <seconds>`       | Set the poll interval (default 45s)          |
+| `ai-kit watch install [--interval <s>]`   | Run watch as a boot-persistent service       |
+| `ai-kit watch uninstall`                  | Remove the watch service                     |
+| `ai-kit watch status`                     | Show service state, checkout, and last sync  |
 
 ## Keeping machines in sync
 
@@ -304,7 +307,23 @@ Some states are reported and skipped, never resolved automatically:
 - **No upstream / fetch failure** — reported once and retried on later ticks (a laptop going offline won't crash or spam the loop).
 - **Install failure** — reported, then backed off rather than retried hot; the next successful sync clears the state.
 
-Because it runs indefinitely, `watch` is best managed as a background service (systemd on Linux, launchd on macOS) so it starts on boot.
+### Run it as a background service
+
+Because it runs indefinitely, `watch` is best managed as a service that starts on boot. From your AI Kit checkout:
+
+```bash
+ai-kit watch install            # register + start the service for this checkout
+ai-kit watch install --interval 30
+ai-kit watch status             # is it running? which checkout? last sync? where are the logs?
+ai-kit watch uninstall
+```
+
+`install` bakes the current directory in as the checkout to watch (using absolute paths to `bun` and the CLI, so it doesn't depend on your `PATH`), then registers a service for your OS:
+
+- **Linux** — a systemd **user** unit at `~/.config/systemd/user/ai-kit-watch.service`, enabled with `systemctl --user`. To keep it running after you log out and across reboots, user services need _lingering_; `install` tries to enable it for you and, if it can't (it usually needs elevated permissions), prints the one command to run once: `sudo loginctl enable-linger <you>`. Logs go to the journal: `journalctl --user -u ai-kit-watch -f`.
+- **macOS** — a launchd agent at `~/Library/LaunchAgents/com.ai-kit.watch.plist` (`RunAtLoad` + `KeepAlive`). It starts at login; on a headless Mac that means a user must be logged in. Logs go to `~/Library/Logs/ai-kit-watch.log` (`tail -f` it).
+
+`install` warns (but doesn't stop) if the current directory isn't a git repo or has no `skills/` directory — a nudge that you're probably not in your AI Kit checkout.
 
 ## Third-party skills
 
