@@ -4,6 +4,7 @@ import { add } from "./add";
 import { install } from "./install";
 import { list } from "./list";
 import { log } from "./log";
+import { installService, statusService, uninstallService } from "./service";
 import { sync } from "./sync";
 import { update, detach } from "./update";
 import { watch } from "./watch";
@@ -38,6 +39,9 @@ function showHelp(): void {
     ai-kit list                               List available skills and MCPs
     ai-kit sync                               Re-sync all tracked installations
     ai-kit watch                              Watch the repo and auto-sync on new commits
+    ai-kit watch install [--interval <s>]     Run watch as a background service (systemd/launchd)
+    ai-kit watch uninstall                    Remove the background watch service
+    ai-kit watch status                       Show whether the watch service is running
     ai-kit skill add <name> [--from <source>] Scaffold a new skill, or fetch one from skills.sh / GitHub
     ai-kit skill update [name]                Update third-party skills from origin
     ai-kit skill detach <name>                Detach a skill from its upstream source
@@ -100,15 +104,28 @@ if (import.meta.main) {
       }
 
       case "watch": {
-        const flags = parseFlags(args.slice(1));
+        const verb = args[1];
+        const flags = parseFlags(args.slice(verb && !verb.startsWith("--") ? 2 : 1));
         const interval = typeof flags.interval === "string" ? Number(flags.interval) : NaN;
         if (typeof flags.interval === "string" && (!Number.isFinite(interval) || interval <= 0)) {
           log.error("--interval must be a positive number of seconds");
           process.exit(1);
         }
-        watch({
-          intervalMs: Number.isFinite(interval) ? interval * 1000 : undefined,
-        });
+        const intervalSeconds = Number.isFinite(interval) ? interval : undefined;
+
+        if (verb === "install") {
+          installService({ intervalSeconds });
+        } else if (verb === "uninstall") {
+          uninstallService();
+        } else if (verb === "status") {
+          statusService();
+        } else if (!verb || verb.startsWith("--")) {
+          watch({ intervalMs: intervalSeconds !== undefined ? intervalSeconds * 1000 : undefined });
+        } else {
+          log.error(`Unknown command: ai-kit watch ${verb}`);
+          showHelp();
+          process.exit(1);
+        }
         break;
       }
 
