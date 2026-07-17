@@ -79,12 +79,19 @@ export function install(target: string, options: InstallOptions): void {
 
   TARGETS[target](skills, mcps, options.global, cwd);
 
+  // Record the SELECTION, not the resolved snapshot: a full install (no --skills/
+  // --mcps) records `undefined` so sync re-scans the repo each cycle and picks up
+  // additions/removals; a cherry-picked install records its explicit list. Pi has
+  // no MCP support, so its mcps selection is permanently empty, not "all".
+  const recordedSkills = options.skills ? skills.map((s) => s.name) : undefined;
+  const recordedMcps = options.mcps ? installedMcps.map((m) => m.name) : target === "pi" ? [] : undefined;
+
   saveInstallation({
     target,
     global: options.global,
     path: options.global ? undefined : cwd,
-    skills: skills.map((s) => s.name),
-    mcps: installedMcps.map((m) => m.name),
+    skills: recordedSkills,
+    mcps: recordedMcps,
     installedAt: new Date().toISOString(),
   });
 
