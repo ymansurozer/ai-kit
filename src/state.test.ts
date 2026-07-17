@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { readStateFrom, writeStateTo, saveInstallationTo } from "./state";
+import { readStateFrom, writeStateTo, saveInstallationTo, mergeSelection } from "./state";
 import type { Installation } from "./state";
 
 describe("state", () => {
@@ -104,6 +104,47 @@ describe("state", () => {
 
     const state = readStateFrom(statePath);
     expect(state.installations).toHaveLength(2);
+  });
+
+  test("saveInstallationTo merges selections monotonically (all wins, else union)", () => {
+    // A full install ("all" = undefined) after a prior cherry-picked list promotes
+    // the record back to "all" — un-freezing it so sync re-scans the repo.
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      skills: ["a"],
+      mcps: ["x"],
+      installedAt: "2026-01-01T00:00:00Z",
+    });
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      skills: undefined,
+      mcps: undefined,
+      installedAt: "2026-02-01T00:00:00Z",
+    });
+    let inst = readStateFrom(statePath).installations[0];
+    expect(inst.skills).toBeUndefined();
+    expect(inst.mcps).toBeUndefined();
+
+    // A later cherry-picked install must NOT narrow an existing "all" record.
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      skills: ["only-this"],
+      mcps: ["only-that"],
+      installedAt: "2026-03-01T00:00:00Z",
+    });
+    inst = readStateFrom(statePath).installations[0];
+    expect(inst.skills).toBeUndefined();
+    expect(inst.mcps).toBeUndefined();
+  });
+
+  test("mergeSelection unions two explicit lists without duplicates", () => {
+    expect(mergeSelection(["a", "b"], ["b", "c"])).toEqual(["a", "b", "c"]);
+    expect(mergeSelection(["a"], undefined)).toBeUndefined();
+    expect(mergeSelection(undefined, ["a"])).toBeUndefined();
+    expect(mergeSelection(undefined, undefined)).toBeUndefined();
   });
 
   test("matches by target + global + path combination", () => {

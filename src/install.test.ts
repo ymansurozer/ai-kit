@@ -71,7 +71,9 @@ describe("install", () => {
     const statePath = join(homeDir, ".ai-kit", "state.json");
     const state = JSON.parse(readFileSync(statePath, "utf-8"));
     expect(state.installations).toHaveLength(1);
-    expect(state.installations[0].skills).toEqual([skillName]);
+    // Full install → skills selection is "all" (undefined); Pi never has MCPs, so
+    // its mcps selection is a permanent empty list, not "all".
+    expect(state.installations[0].skills).toBeUndefined();
     expect(state.installations[0].mcps).toEqual([]);
   });
 
@@ -109,6 +111,52 @@ describe("install", () => {
         expect(inst.mcps).toEqual([mcpName]);
       }
     }
+  });
+
+  test("a full install (no cherry-pick) records an 'all' selection (undefined)", () => {
+    const script = `
+      import { install } from ${JSON.stringify(installUrl)};
+      install("claude", { global: true, cwd: ${JSON.stringify(projectDir)} });
+    `;
+
+    const result = spawnSync(process.execPath, ["-e", script], {
+      cwd: repoRoot,
+      env: { ...process.env, HOME: homeDir },
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(0);
+
+    const statePath = join(homeDir, ".ai-kit", "state.json");
+    const state = JSON.parse(readFileSync(statePath, "utf-8"));
+    expect(state.installations).toHaveLength(1);
+    expect(state.installations[0].skills).toBeUndefined();
+    expect(state.installations[0].mcps).toBeUndefined();
+  });
+
+  test("a cherry-picked install records its explicit selection", () => {
+    const script = `
+      import { install } from ${JSON.stringify(installUrl)};
+      install("claude", {
+        global: true,
+        cwd: ${JSON.stringify(projectDir)},
+        skills: [${JSON.stringify(skillName)}],
+        mcps: [${JSON.stringify(mcpName)}],
+      });
+    `;
+
+    const result = spawnSync(process.execPath, ["-e", script], {
+      cwd: repoRoot,
+      env: { ...process.env, HOME: homeDir },
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(0);
+
+    const statePath = join(homeDir, ".ai-kit", "state.json");
+    const state = JSON.parse(readFileSync(statePath, "utf-8"));
+    expect(state.installations[0].skills).toEqual([skillName]);
+    expect(state.installations[0].mcps).toEqual([mcpName]);
   });
 
   test("does not save an empty Pi installation when only MCPs were requested", () => {

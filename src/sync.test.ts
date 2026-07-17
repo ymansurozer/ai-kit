@@ -114,4 +114,38 @@ describe("sync", () => {
     expect(toml).toContain(`[mcp_servers.${selectedMcpName}]`);
     expect(toml).not.toContain(`[mcp_servers.${extraMcpName}]`);
   });
+
+  test("an 'all' selection (undefined) re-scans and installs a skill/MCP added after install", () => {
+    // Record the install as "all" (no skills/mcps keys), the shape a full install
+    // now writes. The extra skill/MCP were created after — they must still land.
+    writeFileSync(
+      join(homeDir, ".ai-kit", "state.json"),
+      JSON.stringify(
+        {
+          installations: [{ target: "codex", global: false, path: projectDir, installedAt: "2026-01-01T00:00:00Z" }],
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+
+    const script = `
+      import { sync } from ${JSON.stringify(syncUrl)};
+      sync();
+    `;
+
+    const result = spawnSync(process.execPath, ["-e", script], {
+      cwd: repoRoot,
+      env: { ...process.env, HOME: homeDir },
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(0);
+    expect(existsSync(join(projectDir, ".agents", "skills", selectedSkillName, "SKILL.md"))).toBe(true);
+    expect(existsSync(join(projectDir, ".agents", "skills", extraSkillName, "SKILL.md"))).toBe(true);
+
+    const toml = readFileSync(join(projectDir, ".codex", "config.toml"), "utf-8");
+    expect(toml).toContain(`[mcp_servers.${selectedMcpName}]`);
+    expect(toml).toContain(`[mcp_servers.${extraMcpName}]`);
+  });
 });
