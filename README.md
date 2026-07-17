@@ -263,7 +263,7 @@ Both skills and MCPs (including local servers) support two install scopes:
 | Pi       | `~/.agents/skills/<name>/SKILL.md`          | —                                  |
 | OpenCode | `~/.config/opencode/skills/<name>/SKILL.md` | `~/.config/opencode/opencode.json` |
 
-You can mix both — install some skills globally and others per-repo. `ai-kit sync` re-installs to all tracked locations.
+You can mix both — install some skills globally and others per-repo. `ai-kit sync` re-installs to all tracked locations, re-scanning the repo so newly added or removed skills/MCPs propagate.
 
 ## All commands
 
@@ -299,6 +299,10 @@ ai-kit watch --interval 30      # poll every 30s
 ```
 
 On each tick it fetches. When the working tree is clean **and** the branch is strictly behind its upstream, it fast-forwards (`git pull --ff-only`) and then reinstalls — to **every** target this machine has already installed, never a subset. That parity rule matters: a watcher running on several machines reinstalls exactly the set each machine tracks in `~/.ai-kit/state.json`, so no target silently drifts. Run `ai-kit install all --global` once on a new machine and `watch` keeps all four in step from then on.
+
+Because a full install records its selection as "all" (not a frozen list of skill names), `sync` and `watch` **re-scan the repo every cycle** — so skills and MCPs you _add_ or _remove_ propagate too, not just edits to existing ones. A cherry-picked install (`--skills`/`--mcps`) records that explicit selection instead, and a later cherry-picked install only ever _widens_ what a machine syncs (it never narrows an existing "all", so you can't accidentally downgrade a machine to syncing a single skill). To deliberately narrow what a machine syncs, edit its `~/.ai-kit/state.json`.
+
+> **Upgrading from an older version?** State files written before this change stored a frozen list of skill/MCP names, so `sync`/`watch` on those machines won't notice newly _added_ skills. Run `ai-kit install all --global` once after upgrading to rewrite the record to the dynamic "all" selection; from then on additions propagate automatically.
 
 Some states are reported and skipped, never resolved automatically:
 
