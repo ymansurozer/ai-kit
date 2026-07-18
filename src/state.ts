@@ -18,6 +18,11 @@ export interface Installation {
   // Whether this global install includes the harness config tree. Once set it
   // sticks across subsequent installs of the same key (see `saveInstallationTo`).
   config?: boolean;
+  // sha256 of the content ai-kit last wrote for each config destination, keyed by
+  // the destination-relative path (ConfigFile.relPath). Drives drift detection:
+  // absence of a key means "never written by ai-kit". Older state files lack this
+  // map entirely — valid, no migration. Merged per-key on save (see below).
+  configFiles?: Record<string, string>;
   installedAt: string;
 }
 
@@ -50,6 +55,33 @@ export function mergeSelection(prev: string[] | undefined, next: string[] | unde
   return [...new Set([...prev, ...next])];
 }
 
+/**
+ * Merge recorded config-file hashes: new hashes (files written this run) win over
+ * previous ones per key; files not written this run keep their previously recorded
+ * hash. Returns undefined only when neither side has any entries.
+ */
+export function mergeConfigFiles(
+  prev: Record<string, string> | undefined,
+  next: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (prev === undefined && next === undefined) {
+    return undefined;
+  }
+  return { ...prev, ...next };
+}
+
+/** Find the installation entry matching (target, global, path), if any. */
+export function findInstallationFrom(
+  path: string,
+  target: string,
+  global: boolean,
+  installPath: string | undefined,
+): Installation | undefined {
+  return readStateFrom(path).installations.find(
+    (i) => i.target === target && i.global === global && i.path === installPath,
+  );
+}
+
 export function saveInstallationTo(path: string, installation: Installation): void {
   const state = readStateFrom(path);
 
@@ -64,6 +96,7 @@ export function saveInstallationTo(path: string, installation: Installation): vo
       skills: mergeSelection(prev.skills, installation.skills),
       mcps: mergeSelection(prev.mcps, installation.mcps),
       config: installation.config || prev.config,
+      configFiles: mergeConfigFiles(prev.configFiles, installation.configFiles),
     };
   } else {
     state.installations.push(installation);
