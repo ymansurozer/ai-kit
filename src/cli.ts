@@ -5,6 +5,7 @@ import { configInstall } from "./config-install";
 import { install } from "./install";
 import { list } from "./list";
 import { log } from "./log";
+import { configMachine } from "./machine";
 import { installService, statusService, uninstallService } from "./service";
 import { sync } from "./sync";
 import { update, detach } from "./update";
@@ -38,6 +39,7 @@ function showHelp(): void {
   Usage:
     ai-kit install <target>                   Install skills and MCPs to a target
     ai-kit config install [target] [--force]  Install harness config to a target (global; default all)
+    ai-kit config machine [name]              Set this machine's overlay name, or print the effective name
     ai-kit list                               List available skills and MCPs
     ai-kit sync                               Re-sync all tracked installations
     ai-kit watch                              Watch the repo and auto-sync on new commits
@@ -102,8 +104,11 @@ if (import.meta.main) {
           const target = args[2] && !args[2].startsWith("--") ? args[2] : undefined;
           const flags = parseFlags(args.slice(2));
           configInstall(target, { force: flags.force === true });
+        } else if (verb === "machine") {
+          const name = args[2] && !args[2].startsWith("--") ? args[2] : undefined;
+          configMachine(name);
         } else {
-          log.error(`Unknown command: ai-kit config ${verb ?? ""}`.trim() + ". Available: install");
+          log.error(`Unknown command: ai-kit config ${verb ?? ""}`.trim() + ". Available: install, machine");
           showHelp();
           process.exit(1);
         }

@@ -4,7 +4,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 
 import { installConfigFiles, configInstall } from "./config-install";
-import { readStateFrom, writeStateTo } from "./state";
+import { readStateFrom, writeStateTo, saveMachineOverrideTo } from "./state";
 import { configRootFor } from "./targets/descriptors";
 
 describe("installConfigFiles", () => {
@@ -263,6 +263,51 @@ describe("configInstall", () => {
     // Second run, same env: the destination equals the post-expansion hash → overwrite, no drift.
     configInstall("claude", { home, configDir, statePath, env });
     expect(readFileSync(dest, "utf-8")).toBe('{"token":"value1"}');
+  });
+
+  test("installs overlay-merged content for the effective machine (worked example)", () => {
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", env: { A: "1", B: "2" } }));
+    writeConfig("@laptop/claude/settings.json", JSON.stringify({ model: "sonnet", env: { B: "9" } }));
+
+    configInstall("claude", { home, configDir, statePath, machine: "laptop" });
+
+    const dest = join(configRootFor("claude", home), "settings.json");
+    expect(JSON.parse(readFileSync(dest, "utf-8"))).toEqual({ model: "sonnet", env: { A: "1", B: "9" } });
+  });
+
+  test("an overlay for a different machine does not affect the install", () => {
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus" }));
+    writeConfig("@laptop/claude/settings.json", JSON.stringify({ model: "sonnet" }));
+
+    configInstall("claude", { home, configDir, statePath, machine: "desktop" });
+
+    const dest = join(configRootFor("claude", home), "settings.json");
+    expect(JSON.parse(readFileSync(dest, "utf-8"))).toEqual({ model: "opus" });
+  });
+
+  test("a stored machine override drives overlay resolution when no machine is injected", () => {
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus" }));
+    writeConfig("@laptop/claude/settings.json", JSON.stringify({ model: "sonnet" }));
+    saveMachineOverrideTo(statePath, "laptop");
+
+    configInstall("claude", { home, configDir, statePath });
+
+    const dest = join(configRootFor("claude", home), "settings.json");
+    expect(JSON.parse(readFileSync(dest, "utf-8"))).toEqual({ model: "sonnet" });
+  });
+
+  test("merged overlay content installs idempotently (no drift on re-run)", () => {
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", env: { A: "1" } }));
+    writeConfig("@laptop/claude/settings.json", JSON.stringify({ model: "sonnet" }));
+
+    configInstall("claude", { home, configDir, statePath, machine: "laptop" });
+    const dest = join(configRootFor("claude", home), "settings.json");
+    const first = readFileSync(dest, "utf-8");
+
+    // Second run with no external change: the merged content hashes identically,
+    // so the destination is overwritten with the same bytes and reports no drift.
+    configInstall("claude", { home, configDir, statePath, machine: "laptop" });
+    expect(readFileSync(dest, "utf-8")).toBe(first);
   });
 
   test("an old-format state entry (no configFiles map) behaves per the adoption rule", () => {
