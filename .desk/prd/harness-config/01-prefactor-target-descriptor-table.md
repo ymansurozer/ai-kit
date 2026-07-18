@@ -1,6 +1,7 @@
 ---
-status: in-progress
+status: done
 created_at: 2026-07-18
+completed_at: 2026-07-18
 ---
 
 ## Parent
