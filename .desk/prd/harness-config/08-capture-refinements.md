@@ -1,5 +1,6 @@
 ---
-status: open
+status: done
+completed_at: 2026-07-18
 created_at: 2026-07-18
 ---
 
@@ -28,3 +29,9 @@ The three capture safeguards that keep the repo canonical and secret-free. Cover
 - [07-capture-basic.md](07-capture-basic.md)
 
 ## Deviations
+
+- **New `stripCodexMcpSections` rather than reusing `removeTomlSection`.** The existing exported `removeTomlSection` leaves an internal `__AI_KIT_TOML_SECTION__` marker line in its output (it exists to feed `mergeTomlSection`'s `.replace`), so it can't be used for a clean capture-time removal. Added a sibling helper in `codex.ts` that reuses the same private `parseTomlSections` machinery, drops the matched line ranges (section + subsections), and trims trailing whitespace like the installer. Byte-preserving early-return when no known name matches.
+- **Overlay attribution parses the overlay file directly, not `loadConfigTreeFrom`.** The brief allowed either. Direct parsing is correct for overlay-only JSON/TOML files (no base counterpart): `loadConfigTreeFrom` marks those `overlayReplaced` without extracting keys, which would have failed the "name the key" acceptance for a first-capture settings.json with no base yet. Capture reads raw overlay dirs and reports the overlay file's own top-level keys.
+- **Seams added to `ConfigCaptureOptions`:** `mcpsDir`/`serversDir` (drive behavior-19 name resolution via `loadMcpsFrom`/`loadServersFrom`, default `MCPS_DIR`/`SERVERS_DIR`) and `machine`/`statePath` (drive behavior-21, default `resolveMachineFrom(statePath).name`).
+- **Empty `mcp: {}` left in captured opencode.json.** When every entry under `mcp` was ai-kit's, the key is left as an empty object rather than deleted — honest in the diff and harmless on re-install. No attempt to distinguish a user-authored empty `mcp` from an emptied one.
+- **Managed-file capture normalizes trailing whitespace.** Stripped codex `config.toml` / opencode `opencode.json` are written trimEnd + trailing newline (matching the installer's own writes) instead of strict byte-for-byte, since these are ai-kit-managed files. Non-managed files stay raw `cpSync`.

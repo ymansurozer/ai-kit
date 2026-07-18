@@ -219,6 +219,22 @@ const CONFIG_VAR_PATTERN = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
  * variable leaves its placeholder in place and is reported via `missing`; the
  * caller skips such files rather than installing a half-expanded file.
  */
+/**
+ * Names of every `${VAR}` placeholder in `content`, deduplicated in first-seen
+ * order. Shares CONFIG_VAR_PATTERN with `expandEnvVars` so capture's
+ * placeholder-replacement warning (PRD behavior 20) recognizes exactly the same
+ * placeholders the installer expands.
+ */
+export function findPlaceholders(content: string): string[] {
+  const names: string[] = [];
+  for (const match of content.matchAll(CONFIG_VAR_PATTERN)) {
+    if (!names.includes(match[1])) {
+      names.push(match[1]);
+    }
+  }
+  return names;
+}
+
 export function expandEnvVars(
   content: string,
   env: Record<string, string | undefined>,

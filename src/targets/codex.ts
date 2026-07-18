@@ -86,6 +86,47 @@ export function removeTomlSection(content: string, sectionPrefix: string): strin
   return extractTomlSections(content, sectionPrefix).content;
 }
 
+/**
+ * Strip the `[mcp_servers.<name>]` sections (and their subsections like `.env`)
+ * that ai-kit rendered for the given MCP `names`, leaving every other line intact
+ * — user settings and hand-added MCP servers whose names aren't in `names` survive.
+ * Used by `config capture` so `mcps/` + `servers/` stay the single source of truth
+ * for MCP config (PRD behavior 19). Returns `content` unchanged (byte-for-byte)
+ * when nothing matched; otherwise re-trims trailing whitespace like the installer.
+ */
+export function stripCodexMcpSections(content: string, names: string[]): string {
+  if (names.length === 0) {
+    return content;
+  }
+  const known = new Set(names);
+  const skipped = new Set<number>();
+  for (const section of parseTomlSections(content)) {
+    const server = mcpServerFromSection(section.name);
+    if (server && known.has(server)) {
+      for (let index = section.start; index <= section.end; index++) {
+        skipped.add(index);
+      }
+    }
+  }
+  if (skipped.size === 0) {
+    return content;
+  }
+  const kept = content.split("\n").filter((_, index) => !skipped.has(index));
+  return kept.join("\n").trimEnd() + "\n";
+}
+
+/** The MCP name a `mcp_servers.<name>` or `mcp_servers.<name>.<sub>` section belongs
+ * to, or null for any section that isn't an MCP server section. */
+function mcpServerFromSection(sectionName: string): string | null {
+  const prefix = "mcp_servers.";
+  if (!sectionName.startsWith(prefix)) {
+    return null;
+  }
+  const rest = sectionName.slice(prefix.length);
+  const dot = rest.indexOf(".");
+  return dot === -1 ? rest : rest.slice(0, dot);
+}
+
 export function buildTomlSection(mcp: McpConfig): string {
   if ("url" in mcp.config && typeof mcp.config.url === "string") {
     return buildHttpTomlSection(mcp.name, mcp.config as HttpMcpTransportConfig);

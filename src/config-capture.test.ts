@@ -6,6 +6,21 @@ import { join } from "path";
 import { configCapture } from "./config-capture";
 import { configRootFor } from "./targets/descriptors";
 
+/** Capture console.log output (log.warn/success/info all route through it). */
+function captureLogs(fn: () => void): string[] {
+  const logs: string[] = [];
+  const original = console.log;
+  console.log = (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "));
+  };
+  try {
+    fn();
+  } finally {
+    console.log = original;
+  }
+  return logs;
+}
+
 describe("configCapture", () => {
   let tmpDir: string;
   let home: string;
@@ -182,5 +197,142 @@ describe("configCapture", () => {
     configCapture("claude", { home, configDir });
     // Only config/claude/ is written; no @ dirs are created.
     expect(existsSync(join(configDir, "@laptop"))).toBe(false);
+  });
+
+  /** Write a fixture mcps/ dir with one `<name>.json` per name, plus an empty
+   * servers dir, and return the option seams pointing capture at them. */
+  function mcpSeams(...names: string[]): { mcpsDir: string; serversDir: string } {
+    const mcpsDir = join(tmpDir, "mcps");
+    const serversDir = join(tmpDir, "servers");
+    mkdirSync(mcpsDir, { recursive: true });
+    for (const name of names) {
+      writeFileSync(join(mcpsDir, `${name}.json`), JSON.stringify({ config: { command: "x" } }));
+    }
+    return { mcpsDir, serversDir };
+  }
+
+  test("codex capture strips ai-kit-rendered MCP sections, keeps user config and hand-added servers", () => {
+    writeMachine(
+      "codex",
+      "config.toml",
+      `model = "gpt-5"
+approval_policy = "on-request"
+
+[mcp_servers.context7]
+url = "https://mcp.context7.com"
+
+[mcp_servers.myserver]
+command = "bun"
+args = ["run", "/x"]
+
+[mcp_servers.myserver.env]
+FOO = "bar"
+
+[mcp_servers.custom]
+command = "hand-added"
+`,
+    );
+
+    configCapture("codex", { home, configDir, ...mcpSeams("context7", "myserver") });
+
+    const captured = baseRead("codex", "config.toml");
+    // ai-kit's own sections (names from mcps/) are gone.
+    expect(captured).not.toContain("mcp_servers.context7");
+    expect(captured).not.toContain("mcp_servers.myserver");
+    expect(captured).not.toContain("FOO");
+    // User config + hand-added server survive.
+    expect(captured).toContain('model = "gpt-5"');
+    expect(captured).toContain('approval_policy = "on-request"');
+    expect(captured).toContain("[mcp_servers.custom]");
+    expect(captured).toContain('command = "hand-added"');
+  });
+
+  test("opencode capture strips known MCP entries from the mcp key, keeps the rest", () => {
+    writeMachine(
+      "opencode",
+      "opencode.json",
+      JSON.stringify(
+        {
+          theme: "dark",
+          mcp: {
+            context7: { type: "remote", url: "https://mcp.context7.com" },
+            custom: { type: "local", command: ["echo"] },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    configCapture("opencode", { home, configDir, ...mcpSeams("context7") });
+
+    const captured = JSON.parse(baseRead("opencode", "opencode.json"));
+    expect(captured.mcp.context7).toBeUndefined();
+    expect(captured.mcp.custom).toBeDefined();
+    expect(captured.theme).toBe("dark");
+    // 2-space indent + trailing newline, matching the installer.
+    expect(baseRead("opencode", "opencode.json").endsWith("\n")).toBe(true);
+  });
+
+  test("placeholder-replacement warning fires when a repo ${VAR} becomes concrete; content is still concrete", () => {
+    writeTracked("claude", "settings.json", '{"token":"${TEST_TOKEN}"}');
+    writeMachine("claude", "settings.json", '{"token":"concrete-value"}');
+
+    const logs = captureLogs(() => configCapture("claude", { home, configDir }));
+
+    expect(logs.some((l) => l.includes("TEST_TOKEN"))).toBe(true);
+    // Capture never reverse-substitutes: the concrete value is written.
+    expect(baseRead("claude", "settings.json")).toBe('{"token":"concrete-value"}');
+  });
+
+  test("no placeholder warning when the repo copy had no placeholders", () => {
+    writeTracked("claude", "settings.json", '{"model":"opus"}');
+    writeMachine("claude", "settings.json", '{"model":"sonnet"}');
+
+    const logs = captureLogs(() => configCapture("claude", { home, configDir }));
+
+    expect(logs.some((l) => l.includes("re-placeholder"))).toBe(false);
+    expect(baseRead("claude", "settings.json")).toBe('{"model":"sonnet"}');
+  });
+
+  test("no placeholder warning when there is no repo copy yet", () => {
+    writeMachine("claude", "settings.json", '{"token":"concrete-value"}');
+
+    const logs = captureLogs(() => configCapture("claude", { home, configDir }));
+
+    expect(logs.some((l) => l.includes("re-placeholder"))).toBe(false);
+  });
+
+  /** Write a file into a machine's overlay tree (config/@<machine>/<target>/). */
+  function writeOverlay(machine: string, target: string, relPath: string, content: string): void {
+    const full = join(configDir, `@${machine}`, target, relPath);
+    mkdirSync(join(full, ".."), { recursive: true });
+    writeFileSync(full, content);
+  }
+
+  test("overlay-attribution warning names deep-merged keys and flags wholesale replacement", () => {
+    writeMachine("claude", "settings.json", '{"other":1}');
+    writeMachine("claude", "statusline-command.sh", "echo machine");
+    writeOverlay("devmachine", "claude", "settings.json", '{"model":"local-opus"}');
+    writeOverlay("devmachine", "claude", "statusline-command.sh", "echo local");
+
+    const logs = captureLogs(() => configCapture("claude", { home, configDir, machine: "devmachine" }));
+
+    // Deep-merged file: names the overlay's top-level key.
+    expect(logs.some((l) => l.includes("settings.json") && l.includes("model"))).toBe(true);
+    // Wholesale-replaced file: flagged as replaced.
+    expect(logs.some((l) => l.includes("statusline-command.sh") && l.includes("replaces this file"))).toBe(true);
+    // Base tree is written; no spurious file lands under the overlay dir.
+    expect(baseExists("claude", "settings.json")).toBe(true);
+    expect(existsSync(join(configDir, "@devmachine", "claude", "CLAUDE.md"))).toBe(false);
+  });
+
+  test("no overlay-attribution warning on a machine without an overlay dir", () => {
+    writeMachine("claude", "settings.json", '{"model":"opus"}');
+    writeOverlay("devmachine", "claude", "settings.json", '{"model":"local-opus"}');
+
+    const logs = captureLogs(() => configCapture("claude", { home, configDir, machine: "othermachine" }));
+
+    expect(logs.some((l) => l.includes("re-apply as an overlay"))).toBe(false);
   });
 });
