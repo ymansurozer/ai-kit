@@ -4,7 +4,7 @@ import { homedir } from "os";
 import { dirname, join } from "path";
 
 import { AI_KIT_ROOT } from "./config";
-import { CONFIG_DIR, loadConfigTreeFrom, type ConfigFile } from "./config-tree";
+import { CONFIG_DIR, expandEnvVars, loadConfigTreeFrom, type ConfigFile } from "./config-tree";
 import { log } from "./log";
 import { findInstallationFrom, saveInstallationTo, STATE_PATH } from "./state";
 import { configRootFor, DESCRIPTORS, type TargetName } from "./targets/descriptors";
@@ -90,6 +90,9 @@ export interface ConfigInstallOptions {
   statePath?: string;
   /** Override drift skips and let the repo version win (PRD behavior 9). */
   force?: boolean;
+  /** Environment used to expand `${VAR}` placeholders in file content (PRD
+   * behavior 6). Defaults to `process.env`; a test seam. */
+  env?: Record<string, string | undefined>;
 }
 
 function resolveTargets(target: string | undefined): TargetName[] {
@@ -113,6 +116,7 @@ export function configInstall(target?: string, options: ConfigInstallOptions = {
   const configDir = options.configDir ?? join(AI_KIT_ROOT, CONFIG_DIR);
   const statePath = options.statePath ?? STATE_PATH;
   const force = options.force ?? false;
+  const env = options.env ?? process.env;
   const tree = loadConfigTreeFrom(configDir);
 
   let wroteAnything = false;
@@ -127,7 +131,22 @@ export function configInstall(target?: string, options: ConfigInstallOptions = {
     const rootDir = configRootFor(t, home);
     const recordedHashes = findInstallationFrom(statePath, t, true, home)?.configFiles ?? {};
     log.heading(`Installing config to ${t} (global)`);
-    const outcome = installConfigFiles(files, rootDir, { recordedHashes, force });
+
+    // Expand `${VAR}` placeholders before the drift check so the hash covers the
+    // final per-machine content (PRD behavior 6). A file with any unset variable
+    // is skipped and reported; siblings still install, and this is not a failure.
+    const expandedFiles: ConfigFile[] = [];
+    const skippedMissingVar: { relPath: string; missing: string[] }[] = [];
+    for (const file of files) {
+      const { content, missing } = expandEnvVars(file.content, env);
+      if (missing.length > 0) {
+        skippedMissingVar.push({ relPath: file.relPath, missing });
+        continue;
+      }
+      expandedFiles.push({ relPath: file.relPath, content });
+    }
+
+    const outcome = installConfigFiles(expandedFiles, rootDir, { recordedHashes, force });
 
     for (const relPath of outcome.installed) {
       log.success(`Installed config ${relPath} → ${rootDir}/${relPath}`);
@@ -138,6 +157,12 @@ export function configInstall(target?: string, options: ConfigInstallOptions = {
           ? "modified since last install — capture it, or re-run with --force"
           : "exists but is not managed by ai-kit — capture it, or re-run with --force";
       log.warn(`Skipped config ${skip.relPath} → ${rootDir}/${skip.relPath}: ${hint}`);
+    }
+    for (const skip of skippedMissingVar) {
+      log.warn(
+        `Skipped config ${skip.relPath} → ${rootDir}/${skip.relPath}: unset environment ` +
+          `variable(s) ${skip.missing.join(", ")} — set them and re-run`,
+      );
     }
 
     saveInstallationTo(statePath, {
