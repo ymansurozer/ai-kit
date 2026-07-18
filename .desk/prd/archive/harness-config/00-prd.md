@@ -1,5 +1,6 @@
 ---
-status: in-progress
+status: done
+completed_at: 2026-07-18
 created_at: 2026-07-18
 ---
 
