@@ -1,5 +1,6 @@
 ---
-status: open
+status: done
+completed_at: 2026-07-18
 created_at: 2026-07-18
 ---
 
@@ -29,3 +30,6 @@ Make config ride the main install flow and the sync/watch loop, completing the o
 - [03-drift-aware-overwrite.md](03-drift-aware-overwrite.md)
 
 ## Deviations
+
+- **Global config state keyed under `path: undefined`, not `path: home`.** Slice 02/05's `configInstall` recorded its state entry with `path: home`, while the main `install --global` uses `path: undefined`. For the integrated flow (config riding `install --global`) and sync to produce ONE coherent entry per target — and for `sync` of a standalone config-only entry to reach the config phase rather than adopt-skipping under a mismatched key — both paths must share a key. Unified on `path: undefined` (global installs are not tied to a directory). Updated the two `config-install.test.ts` assertions that hardcoded `path: home`.
+- **Standalone `config install` MCP re-merge treats "no installation record" as "nothing to restore," not "all MCPs."** The issue specified the re-merge selection as `missing entry = all`. But the config-only save records `mcps: []`, so a fresh config-only machine would merge all repo MCPs on the first run (`missing → all`) and then drop them on the second (`[] → none`) — failing the zero-drift / not-dropped invariant, and injecting MCPs a config-only machine never asked for. Resolved by re-merging only when an installation record already exists (its recorded selection — `undefined` = all, a list = that subset, `[]` = none — says what to restore); a target with no record never had ai-kit MCP sections written, so there is nothing to restore. The "prior MCP merge" scenario the acceptance criterion targets (a machine that ran a full `install`, recording `mcps: undefined`) restores correctly and idempotently.

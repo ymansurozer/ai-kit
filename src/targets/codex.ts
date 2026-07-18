@@ -47,10 +47,20 @@ function installMcpsLocal(mcps: McpConfig[], cwd: string): void {
 }
 
 function installMcpsGlobal(mcps: McpConfig[]): void {
+  mergeCodexMcpsGlobal(mcps, homedir());
+}
+
+/**
+ * Merge MCP server sections into Codex's global `config.toml` under `home`.
+ * Exported so the standalone `config install` can restore MCP sections it just
+ * overwrote when it rewrote `config.toml` from the repo (PRD behavior 10). No-op
+ * for an empty list, so a config-only machine's file is left untouched.
+ */
+export function mergeCodexMcpsGlobal(mcps: McpConfig[], home: string): void {
   if (mcps.length === 0) {
     return;
   }
-  const configPath = join(configRootFor("codex", homedir()), "config.toml");
+  const configPath = join(configRootFor("codex", home), "config.toml");
   mergeMcpsToml(mcps, configPath, "~/.codex/config.toml");
 }
 

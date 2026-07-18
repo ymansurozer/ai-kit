@@ -67,6 +67,7 @@ function showHelp(): void {
     ai-kit install claude
     ai-kit install claude --global
     ai-kit install all --global
+    ai-kit install all --global --force
     ai-kit install codex --skills review,humanizer --mcps playwright
     ai-kit install pi
     ai-kit skill add frontend-design --from anthropics/skills
@@ -92,6 +93,7 @@ if (import.meta.main) {
         const flags = parseFlags(args.slice(2));
         install(target, {
           global: flags.global === true,
+          force: flags.force === true,
           skills: typeof flags.skills === "string" ? flags.skills.split(",") : undefined,
           mcps: typeof flags.mcps === "string" ? flags.mcps.split(",") : undefined,
         });
