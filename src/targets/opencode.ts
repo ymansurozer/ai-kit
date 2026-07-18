@@ -74,6 +74,25 @@ export function mergeOpencodeMcpsGlobal(mcps: McpConfig[], home: string): void {
   mergeMcpsJson(mcps, configPath, "~/.config/opencode/opencode.json");
 }
 
+/**
+ * Strip the MCP server entries ai-kit rendered (names in `names`) from a captured
+ * `opencode.json`'s `mcp` object, leaving hand-added servers and all other JSON
+ * intact. Used by `config capture` so `mcps/` + `servers/` stay the single source
+ * of truth for MCP config (PRD behavior 19). Re-serialized with 2-space indent and
+ * a trailing newline to match what the installer writes.
+ */
+export function stripOpencodeMcpEntries(content: string, names: string[]): string {
+  const parsed = JSON.parse(content) as Record<string, unknown>;
+  const mcp = parsed.mcp;
+  if (mcp && typeof mcp === "object" && !Array.isArray(mcp)) {
+    const servers = mcp as Record<string, unknown>;
+    for (const name of names) {
+      delete servers[name];
+    }
+  }
+  return JSON.stringify(parsed, null, 2) + "\n";
+}
+
 function mergeMcpsJson(mcps: McpConfig[], configPath: string, displayPath: string): void {
   let existing: Record<string, unknown> = {};
 
