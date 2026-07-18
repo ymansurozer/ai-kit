@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { add } from "./add";
+import { configInstall } from "./config-install";
 import { install } from "./install";
 import { list } from "./list";
 import { log } from "./log";
@@ -36,6 +37,7 @@ function showHelp(): void {
 
   Usage:
     ai-kit install <target>                   Install skills and MCPs to a target
+    ai-kit config install [target]            Install harness config to a target (global; default all)
     ai-kit list                               List available skills and MCPs
     ai-kit sync                               Re-sync all tracked installations
     ai-kit watch                              Watch the repo and auto-sync on new commits
@@ -90,6 +92,18 @@ if (import.meta.main) {
           skills: typeof flags.skills === "string" ? flags.skills.split(",") : undefined,
           mcps: typeof flags.mcps === "string" ? flags.mcps.split(",") : undefined,
         });
+        break;
+      }
+
+      case "config": {
+        const verb = args[1];
+        if (verb === "install") {
+          configInstall(args[2]);
+        } else {
+          log.error(`Unknown command: ai-kit config ${verb ?? ""}`.trim() + ". Available: install");
+          showHelp();
+          process.exit(1);
+        }
         break;
       }
 

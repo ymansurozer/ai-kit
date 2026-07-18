@@ -15,6 +15,9 @@ export interface Installation {
   // its explicit list. See `mergeSelection` for how repeated installs combine.
   skills?: string[];
   mcps?: string[];
+  // Whether this global install includes the harness config tree. Once set it
+  // sticks across subsequent installs of the same key (see `saveInstallationTo`).
+  config?: boolean;
   installedAt: string;
 }
 
@@ -60,6 +63,7 @@ export function saveInstallationTo(path: string, installation: Installation): vo
       ...installation,
       skills: mergeSelection(prev.skills, installation.skills),
       mcps: mergeSelection(prev.mcps, installation.mcps),
+      config: installation.config || prev.config,
     };
   } else {
     state.installations.push(installation);

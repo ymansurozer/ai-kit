@@ -140,6 +140,33 @@ describe("state", () => {
     expect(inst.mcps).toBeUndefined();
   });
 
+  test("config flag sticks across a later install that omits it", () => {
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      path: "/home/u",
+      config: true,
+      skills: [],
+      mcps: [],
+      installedAt: "2026-01-01T00:00:00Z",
+    });
+    // A regular global install of the same key does not carry config:true.
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      path: "/home/u",
+      skills: undefined,
+      mcps: undefined,
+      installedAt: "2026-02-01T00:00:00Z",
+    });
+
+    const inst = readStateFrom(statePath).installations[0];
+    expect(inst.config).toBe(true);
+    // The regular install still promotes selections to "all".
+    expect(inst.skills).toBeUndefined();
+    expect(inst.mcps).toBeUndefined();
+  });
+
   test("mergeSelection unions two explicit lists without duplicates", () => {
     expect(mergeSelection(["a", "b"], ["b", "c"])).toEqual(["a", "b", "c"]);
     expect(mergeSelection(["a"], undefined)).toBeUndefined();

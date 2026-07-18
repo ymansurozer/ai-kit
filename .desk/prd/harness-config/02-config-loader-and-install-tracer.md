@@ -1,5 +1,6 @@
 ---
-status: open
+status: done
+completed_at: 2026-07-18
 created_at: 2026-07-18
 ---
 
@@ -30,3 +31,6 @@ The tracer bullet: a `config/` mirror tree in the repo and a `ai-kit config inst
 - [01-prefactor-target-descriptor-table.md](01-prefactor-target-descriptor-table.md)
 
 ## Deviations
+
+- **Added a `statePath?` test seam to `ConfigInstallOptions`.** The brief specified only `home?`/`configDir?`, but `configInstall` records state via the module-level `STATE_PATH` (derived from the real `homedir()` at import time, not from `options.home`). Without a seam, state tests would write to the real `~/.ai-kit/state.json`, violating the "never touch the real home" rule. Added `statePath?` (defaulting to `STATE_PATH`) and switched to `saveInstallationTo(statePath, ...)`. Real behavior is unchanged; only tests override it.
+- **State merge now preserves the `config` flag.** `saveInstallationTo` merges `config: installation.config || prev.config` so a subsequent regular `install <target> --global` (which does not carry `config`) cannot wipe a previously recorded `config: true`. The brief scoped the "only add config:true, never touch skills/mcps" rule to the config-install direction; this extends the same intent to the reverse direction, which is a small merge-logic change beyond the letter of the brief.
