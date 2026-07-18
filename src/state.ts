@@ -28,6 +28,9 @@ export interface Installation {
 
 export interface State {
   installations: Installation[];
+  // Optional override for this machine's overlay-resolution name. Absent means
+  // "use the normalized hostname" (see machine.ts). Older state files lack it.
+  machine?: string;
 }
 
 export function readStateFrom(path: string): State {
@@ -102,6 +105,18 @@ export function saveInstallationTo(path: string, installation: Installation): vo
     state.installations.push(installation);
   }
 
+  writeStateTo(path, state);
+}
+
+/** Read the stored machine-name override, if any (top-level `machine` field). */
+export function readMachineOverrideFrom(path: string): string | undefined {
+  return readStateFrom(path).machine;
+}
+
+/** Store a machine-name override, preserving the rest of state. */
+export function saveMachineOverrideTo(path: string, name: string): void {
+  const state = readStateFrom(path);
+  state.machine = name;
   writeStateTo(path, state);
 }
 

@@ -29,3 +29,7 @@ Per-machine overlays and the machine-identity command. Covers PRD behaviors 5 an
 - [02-config-loader-and-install-tracer.md](02-config-loader-and-install-tracer.md)
 
 ## Deviations
+
+- **Overlay-attribution shape (data model for slice 08).** `ConfigFile` gains two optional fields rather than one: `overlayKeys?: string[]` carries the top-level keys an overlay contributed to a deep-merged JSON/TOML file; `overlayReplaced?: boolean` marks a file whose whole content came from the overlay (wholesale non-JSON/TOML replacement or an overlay-only file). They are mutually exclusive, and both are absent on files no overlay touched. Chosen over a single `overlayKeys` covering "all keys" because whole-file replacements (e.g. `.md`) have no parseable keys — a boolean marker is unambiguous for capture's attribution warning.
+- **Overlay-only target trees resolve.** The loader iterates all known targets (not only those with a base `config/<target>/` dir), so a `config/@<machine>/pi/…` overlay installs even when the base tree has no `pi/` directory at all — the whole-tree analogue of PRD behavior 5's "overlay file with no base counterpart installs." Banned-path enforcement still applies to these.
+- **`loadConfigTree()` (no-arg entry) now resolves the effective machine** via `resolveMachineFrom(STATE_PATH)`, so the real entry point applies overlays; `configInstall` passes its resolved machine to `loadConfigTreeFrom` directly and does not go through it.

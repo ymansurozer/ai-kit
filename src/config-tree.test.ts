@@ -3,6 +3,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
+import { parse as parseToml } from "smol-toml";
+
 import { expandEnvVars, loadConfigTreeFrom } from "./config-tree";
 
 describe("loadConfigTreeFrom", () => {
@@ -70,6 +72,120 @@ describe("loadConfigTreeFrom", () => {
   test("throws on a banned config path (claude commands/)", () => {
     writeFixture("claude/commands/foo.md", "banned");
     expect(() => loadConfigTreeFrom(tmpDir)).toThrow(/commands/);
+  });
+});
+
+describe("loadConfigTreeFrom overlays", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "ai-kit-overlay-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function writeFixture(relPath: string, content: string): void {
+    const full = join(tmpDir, relPath);
+    mkdirSync(join(full, ".."), { recursive: true });
+    writeFileSync(full, content);
+  }
+
+  function claudeFile(machine: string | undefined, relPath: string) {
+    return loadConfigTreeFrom(tmpDir, machine).claude.find((f) => f.relPath === relPath)!;
+  }
+
+  test("deep-merges a JSON overlay: objects merge recursively, scalars replace (PRD worked example)", () => {
+    writeFixture("claude/settings.json", JSON.stringify({ model: "opus", env: { A: "1", B: "2" } }));
+    writeFixture("@laptop/claude/settings.json", JSON.stringify({ model: "sonnet", env: { B: "9" } }));
+
+    const file = claudeFile("laptop", "settings.json");
+    expect(JSON.parse(file.content)).toEqual({ model: "sonnet", env: { A: "1", B: "9" } });
+    expect(file.overlayKeys).toEqual(["model", "env"]);
+    expect(file.overlayReplaced).toBeUndefined();
+  });
+
+  test("an overlay array replaces the base array rather than concatenating", () => {
+    writeFixture("claude/settings.json", JSON.stringify({ tools: ["a", "b", "c"], keep: true }));
+    writeFixture("@laptop/claude/settings.json", JSON.stringify({ tools: ["x"] }));
+
+    const file = claudeFile("laptop", "settings.json");
+    expect(JSON.parse(file.content)).toEqual({ tools: ["x"], keep: true });
+  });
+
+  test("deep-merges a TOML overlay the same way, re-stringifying", () => {
+    writeFixture("codex/config.toml", 'model = "opus"\n\n[env]\nA = "1"\nB = "2"\n');
+    writeFixture("@laptop/codex/config.toml", 'model = "sonnet"\n\n[env]\nB = "9"\n');
+
+    const file = loadConfigTreeFrom(tmpDir, "laptop").codex.find((f) => f.relPath === "config.toml")!;
+    expect(parseToml(file.content)).toEqual({ model: "sonnet", env: { A: "1", B: "9" } });
+    expect(file.overlayKeys).toEqual(["model", "env"]);
+  });
+
+  test("a non-JSON/TOML overlay replaces the base file wholesale", () => {
+    writeFixture("claude/CLAUDE.md", "# base instructions");
+    writeFixture("@laptop/claude/CLAUDE.md", "# laptop instructions");
+
+    const file = claudeFile("laptop", "CLAUDE.md");
+    expect(file.content).toBe("# laptop instructions");
+    expect(file.overlayReplaced).toBe(true);
+    expect(file.overlayKeys).toBeUndefined();
+  });
+
+  test("an overlay-only file with no base counterpart installs, marked as overlay-supplied", () => {
+    writeFixture("claude/settings.json", "{}");
+    writeFixture("@laptop/claude/laptop-only.json", '{"x":1}');
+
+    const only = claudeFile("laptop", "laptop-only.json");
+    expect(only.content).toBe('{"x":1}');
+    expect(only.overlayReplaced).toBe(true);
+  });
+
+  test("an overlay for a target with no base tree still installs its files", () => {
+    writeFixture("@laptop/pi/settings.json", '{"x":1}');
+
+    const tree = loadConfigTreeFrom(tmpDir, "laptop");
+    expect(tree.pi).toEqual([{ relPath: "settings.json", content: '{"x":1}', overlayReplaced: true }]);
+  });
+
+  test("an overlay for a different machine name has no effect", () => {
+    writeFixture("claude/settings.json", JSON.stringify({ model: "opus" }));
+    writeFixture("@desktop/claude/settings.json", JSON.stringify({ model: "sonnet" }));
+
+    const file = claudeFile("laptop", "settings.json");
+    expect(JSON.parse(file.content)).toEqual({ model: "opus" });
+    expect(file.overlayKeys).toBeUndefined();
+    expect(file.overlayReplaced).toBeUndefined();
+  });
+
+  test("with no machine given, overlay directories are ignored", () => {
+    writeFixture("claude/settings.json", JSON.stringify({ model: "opus" }));
+    writeFixture("@laptop/claude/settings.json", JSON.stringify({ model: "sonnet" }));
+
+    const file = claudeFile(undefined, "settings.json");
+    expect(JSON.parse(file.content)).toEqual({ model: "opus" });
+  });
+
+  test("a base file untouched by any overlay carries no overlay metadata", () => {
+    writeFixture("claude/settings.json", JSON.stringify({ model: "opus" }));
+    writeFixture("claude/CLAUDE.md", "# base");
+    writeFixture("@laptop/claude/settings.json", JSON.stringify({ model: "sonnet" }));
+
+    const untouched = claudeFile("laptop", "CLAUDE.md");
+    expect(untouched.overlayKeys).toBeUndefined();
+    expect(untouched.overlayReplaced).toBeUndefined();
+  });
+
+  test("banned config paths are enforced in overlay trees too", () => {
+    writeFixture("@laptop/claude/commands/foo.md", "banned");
+    expect(() => loadConfigTreeFrom(tmpDir, "laptop")).toThrow(/commands/);
+  });
+
+  test("a malformed JSON overlay throws an error naming the file", () => {
+    writeFixture("claude/settings.json", "{}");
+    writeFixture("@laptop/claude/settings.json", "{ not json");
+    expect(() => loadConfigTreeFrom(tmpDir, "laptop")).toThrow(/settings\.json/);
   });
 });
 

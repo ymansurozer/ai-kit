@@ -6,6 +6,7 @@ import { dirname, join } from "path";
 import { AI_KIT_ROOT } from "./config";
 import { CONFIG_DIR, expandEnvVars, loadConfigTreeFrom, type ConfigFile } from "./config-tree";
 import { log } from "./log";
+import { resolveMachineFrom } from "./machine";
 import { findInstallationFrom, saveInstallationTo, STATE_PATH } from "./state";
 import { configRootFor, DESCRIPTORS, type TargetName } from "./targets/descriptors";
 
@@ -93,6 +94,10 @@ export interface ConfigInstallOptions {
   /** Environment used to expand `${VAR}` placeholders in file content (PRD
    * behavior 6). Defaults to `process.env`; a test seam. */
   env?: Record<string, string | undefined>;
+  /** Machine name for overlay resolution (PRD behavior 5). Defaults to the state
+   * override, else the normalized hostname; a test seam so tests never touch the
+   * real hostname. */
+  machine?: string;
 }
 
 function resolveTargets(target: string | undefined): TargetName[] {
@@ -117,7 +122,8 @@ export function configInstall(target?: string, options: ConfigInstallOptions = {
   const statePath = options.statePath ?? STATE_PATH;
   const force = options.force ?? false;
   const env = options.env ?? process.env;
-  const tree = loadConfigTreeFrom(configDir);
+  const machine = options.machine ?? resolveMachineFrom(statePath).name;
+  const tree = loadConfigTreeFrom(configDir, machine);
 
   let wroteAnything = false;
 
@@ -143,7 +149,7 @@ export function configInstall(target?: string, options: ConfigInstallOptions = {
         skippedMissingVar.push({ relPath: file.relPath, missing });
         continue;
       }
-      expandedFiles.push({ relPath: file.relPath, content });
+      expandedFiles.push({ ...file, content });
     }
 
     const outcome = installConfigFiles(expandedFiles, rootDir, { recordedHashes, force });

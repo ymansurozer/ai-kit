@@ -14,7 +14,9 @@
     "lint:fix": "oxfmt . && oxlint . --fix"
   },
   "dependencies": {
+    "defu": "^6.1.7",
     "fastmcp": "^3.34.0",
+    "smol-toml": "^1.7.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

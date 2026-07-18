@@ -1,7 +1,12 @@
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { join, resolve } from "path";
 
+import { createDefu } from "defu";
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
+
 import { log } from "./log";
+import { resolveMachineFrom } from "./machine";
+import { STATE_PATH } from "./state";
 import { DESCRIPTORS, type TargetName } from "./targets/descriptors";
 
 export const CONFIG_DIR = "config";
@@ -11,11 +16,24 @@ export interface ConfigFile {
   /** Destination path relative to the target's config root. */
   relPath: string;
   content: string;
+  /**
+   * For a file deep-merged with a machine overlay (JSON/TOML): the top-level
+   * keys the overlay contributed to the merged result. Consumed by capture's
+   * overlay-attribution warning (slice 08). Absent when no overlay touched it.
+   */
+  overlayKeys?: string[];
+  /**
+   * True when the whole file's content came from the overlay — either a
+   * wholesale replacement of a non-JSON/TOML base file, or an overlay-only file
+   * with no base counterpart. Mutually exclusive with `overlayKeys`.
+   */
+  overlayReplaced?: boolean;
 }
 
 export type ConfigTree = Record<TargetName, ConfigFile[]>;
 
-const TARGET_NAMES = new Set(Object.keys(DESCRIPTORS) as TargetName[]);
+const TARGET_LIST = Object.keys(DESCRIPTORS) as TargetName[];
+const TARGET_NAMES = new Set(TARGET_LIST);
 
 function emptyTree(): ConfigTree {
   return { claude: [], codex: [], pi: [], opencode: [] };
@@ -52,33 +70,126 @@ function assertNoBannedPaths(target: TargetName, files: ConfigFile[]): void {
 }
 
 /**
- * Scan a config directory (the `config/` folder itself) and return per-target
- * file sets. Directories starting with `@` are machine overlays handled by a
- * later slice and are ignored here; unknown directory names are warned and
- * skipped. Missing or empty dir → empty sets.
+ * Deep-merge two parsed structures with overlay priority. Objects/tables merge
+ * recursively; scalars and arrays in the overlay REPLACE the base's rather than
+ * concatenating. Plain `defu` concatenates arrays, so a custom merger assigns the
+ * overlay (priority) array outright — the case the PRD's "overlay arrays win"
+ * rule turns on. `deepMerge(overlay, base)`: the first argument wins.
  */
-export function loadConfigTreeFrom(dir: string): ConfigTree {
+const deepMerge = createDefu((obj, key, value) => {
+  if (Array.isArray(obj[key]) || Array.isArray(value)) {
+    obj[key] = value;
+    return true;
+  }
+  return false;
+});
+
+function parseJsonConfig(content: string, label: string): Record<string, unknown> {
+  try {
+    return JSON.parse(content) as Record<string, unknown>;
+  } catch (err) {
+    throw new Error(`Failed to parse JSON config ${label}: ${err instanceof Error ? err.message : String(err)}`, {
+      cause: err,
+    });
+  }
+}
+
+function parseTomlConfig(content: string, label: string): Record<string, unknown> {
+  try {
+    return parseToml(content);
+  } catch (err) {
+    throw new Error(`Failed to parse TOML config ${label}: ${err instanceof Error ? err.message : String(err)}`, {
+      cause: err,
+    });
+  }
+}
+
+/**
+ * Combine a base file with its machine-overlay counterpart. `.json` and `.toml`
+ * deep-merge (overlay wins; objects merge, arrays/scalars replace); any other
+ * type is replaced wholesale by the overlay. The returned file carries overlay
+ * attribution: `overlayKeys` for merges, `overlayReplaced` for whole-file wins.
+ */
+function combineFile(target: TargetName, base: ConfigFile, overlay: ConfigFile): ConfigFile {
+  const rel = base.relPath;
+  const baseLabel = `config/${target}/${rel}`;
+  const overlayLabel = `config/@overlay/${target}/${rel}`;
+
+  if (rel.endsWith(".json")) {
+    const overlayObj = parseJsonConfig(overlay.content, overlayLabel);
+    const merged = deepMerge(overlayObj, parseJsonConfig(base.content, baseLabel));
+    return { relPath: rel, content: JSON.stringify(merged, null, 2) + "\n", overlayKeys: Object.keys(overlayObj) };
+  }
+
+  if (rel.endsWith(".toml")) {
+    const overlayObj = parseTomlConfig(overlay.content, overlayLabel);
+    const merged = deepMerge(overlayObj, parseTomlConfig(base.content, baseLabel));
+    return { relPath: rel, content: stringifyToml(merged), overlayKeys: Object.keys(overlayObj) };
+  }
+
+  return { relPath: rel, content: overlay.content, overlayReplaced: true };
+}
+
+/** Merge an overlay file set over a base set: matching files combine per type,
+ * base-only files pass through untouched, overlay-only files install as-is. */
+function mergeOverlay(target: TargetName, baseFiles: ConfigFile[], overlayFiles: ConfigFile[]): ConfigFile[] {
+  const overlayByPath = new Map(overlayFiles.map((f) => [f.relPath, f]));
+  const basePaths = new Set(baseFiles.map((f) => f.relPath));
+
+  const merged: ConfigFile[] = baseFiles.map((base) => {
+    const overlay = overlayByPath.get(base.relPath);
+    return overlay ? combineFile(target, base, overlay) : base;
+  });
+
+  for (const overlay of overlayFiles) {
+    if (!basePaths.has(overlay.relPath)) {
+      merged.push({ relPath: overlay.relPath, content: overlay.content, overlayReplaced: true });
+    }
+  }
+
+  return merged;
+}
+
+/**
+ * Scan a config directory (the `config/` folder itself) and return per-target
+ * file sets. When `machine` is given and `config/@<machine>/<target>/` exists,
+ * its files deep-merge over the base tree (PRD behavior 5); overlays for any
+ * other machine name are ignored. Unknown top-level directory names are warned
+ * and skipped. Missing or empty dir → empty sets.
+ */
+export function loadConfigTreeFrom(dir: string, machine?: string): ConfigTree {
   const tree = emptyTree();
   if (!existsSync(dir)) {
     return tree;
   }
 
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
+    if (!entry.isDirectory() || entry.name.startsWith("@") || TARGET_NAMES.has(entry.name as TargetName)) {
       continue;
     }
-    if (entry.name.startsWith("@")) {
-      continue;
-    }
-    if (!TARGET_NAMES.has(entry.name as TargetName)) {
-      log.warn(`Ignoring unknown directory in config/: ${entry.name}`);
-      continue;
+    log.warn(`Ignoring unknown directory in config/: ${entry.name}`);
+  }
+
+  const overlayRoot = machine ? join(dir, `@${machine}`) : undefined;
+
+  for (const target of TARGET_LIST) {
+    const baseFiles: ConfigFile[] = [];
+    const baseDir = join(dir, target);
+    if (existsSync(baseDir)) {
+      collectFiles(baseDir, "", baseFiles);
+      assertNoBannedPaths(target, baseFiles);
     }
 
-    const target = entry.name as TargetName;
-    const files: ConfigFile[] = [];
-    collectFiles(join(dir, entry.name), "", files);
-    assertNoBannedPaths(target, files);
+    let files = baseFiles;
+    if (overlayRoot) {
+      const overlayDir = join(overlayRoot, target);
+      if (existsSync(overlayDir)) {
+        const overlayFiles: ConfigFile[] = [];
+        collectFiles(overlayDir, "", overlayFiles);
+        assertNoBannedPaths(target, overlayFiles);
+        files = mergeOverlay(target, baseFiles, overlayFiles);
+      }
+    }
     tree[target] = files;
   }
 
@@ -86,7 +197,7 @@ export function loadConfigTreeFrom(dir: string): ConfigTree {
 }
 
 export function loadConfigTree(): ConfigTree {
-  return loadConfigTreeFrom(CONFIG_ROOT);
+  return loadConfigTreeFrom(CONFIG_ROOT, resolveMachineFrom(STATE_PATH).name);
 }
 
 /** Matches every `${VAR}` placeholder (VAR = a shell-style identifier). Global so
