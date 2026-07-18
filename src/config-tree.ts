@@ -88,3 +88,40 @@ export function loadConfigTreeFrom(dir: string): ConfigTree {
 export function loadConfigTree(): ConfigTree {
   return loadConfigTreeFrom(CONFIG_ROOT);
 }
+
+/** Matches every `${VAR}` placeholder (VAR = a shell-style identifier). Global so
+ * `String.replace` walks all occurrences, including ones adjacent to other text. */
+const CONFIG_VAR_PATTERN = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+
+/**
+ * Expand every `${VAR}` placeholder in `content` from `env`, returning the
+ * expanded string plus the names of referenced-but-unset variables (deduplicated,
+ * in order of first appearance). Unlike the MCP placeholder helpers in config.ts
+ * — which pass placeholders through to the harness untouched and only match a
+ * value that is *exactly* a placeholder — this is plain string substitution:
+ * multiple vars per file and placeholders adjacent to text (`Bearer ${TOKEN}`,
+ * `${HOME}/bin/x`) all expand. Config files must be fully materialized here
+ * because harnesses don't resolve `${VAR}` in their settings files.
+ *
+ * No escaping mechanism exists in v1: a literal `${...}` cannot be expressed, so
+ * config files that need a literal `${` sequence are out of scope. An unset
+ * variable leaves its placeholder in place and is reported via `missing`; the
+ * caller skips such files rather than installing a half-expanded file.
+ */
+export function expandEnvVars(
+  content: string,
+  env: Record<string, string | undefined>,
+): { content: string; missing: string[] } {
+  const missing: string[] = [];
+  const expanded = content.replace(CONFIG_VAR_PATTERN, (match, name: string) => {
+    const value = env[name];
+    if (value === undefined) {
+      if (!missing.includes(name)) {
+        missing.push(name);
+      }
+      return match;
+    }
+    return value;
+  });
+  return { content: expanded, missing };
+}

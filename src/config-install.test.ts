@@ -229,6 +229,42 @@ describe("configInstall", () => {
     expect(readFileSync(dest, "utf-8")).toBe("repo-v1");
   });
 
+  test("expands ${VAR} in content from the provided env; destination has no placeholder", () => {
+    writeConfig("claude/settings.json", '{"token":"${TEST_TOKEN}"}');
+    configInstall("claude", { home, configDir, statePath, env: { TEST_TOKEN: "s3cr3t" } });
+
+    const dest = join(configRootFor("claude", home), "settings.json");
+    expect(readFileSync(dest, "utf-8")).toBe('{"token":"s3cr3t"}');
+  });
+
+  test("skips a file with an unset var (naming it) while siblings install; not a hard failure", () => {
+    writeConfig("claude/settings.json", '{"token":"${MISSING_TOKEN}"}');
+    writeConfig("claude/CLAUDE.md", "# no placeholders");
+
+    expect(() => configInstall("claude", { home, configDir, statePath, env: {} })).not.toThrow();
+
+    const root = configRootFor("claude", home);
+    // Sibling with no placeholder still installs.
+    expect(readFileSync(join(root, "CLAUDE.md"), "utf-8")).toBe("# no placeholders");
+    // File with the unset var is not written.
+    expect(existsSync(join(root, "settings.json"))).toBe(false);
+    // Its hash is not recorded either, since it was never written.
+    const inst = readStateFrom(statePath).installations.find((i) => i.target === "claude");
+    expect(Object.keys(inst!.configFiles ?? {})).toEqual(["CLAUDE.md"]);
+  });
+
+  test("re-running install with the same env reports no drift (hash taken post-expansion)", () => {
+    writeConfig("claude/settings.json", '{"token":"${TEST_TOKEN}"}');
+    const env = { TEST_TOKEN: "value1" };
+    configInstall("claude", { home, configDir, statePath, env });
+    const dest = join(configRootFor("claude", home), "settings.json");
+    expect(readFileSync(dest, "utf-8")).toBe('{"token":"value1"}');
+
+    // Second run, same env: the destination equals the post-expansion hash → overwrite, no drift.
+    configInstall("claude", { home, configDir, statePath, env });
+    expect(readFileSync(dest, "utf-8")).toBe('{"token":"value1"}');
+  });
+
   test("an old-format state entry (no configFiles map) behaves per the adoption rule", () => {
     writeConfig("claude/settings.json", "repo-version");
     const dest = join(configRootFor("claude", home), "settings.json");

@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { loadConfigTreeFrom } from "./config-tree";
+import { expandEnvVars, loadConfigTreeFrom } from "./config-tree";
 
 describe("loadConfigTreeFrom", () => {
   let tmpDir: string;
@@ -70,5 +70,38 @@ describe("loadConfigTreeFrom", () => {
   test("throws on a banned config path (claude commands/)", () => {
     writeFixture("claude/commands/foo.md", "banned");
     expect(() => loadConfigTreeFrom(tmpDir)).toThrow(/commands/);
+  });
+});
+
+describe("expandEnvVars", () => {
+  test("passes through content with no placeholders unchanged", () => {
+    const result = expandEnvVars('{"a":1}', {});
+    expect(result).toEqual({ content: '{"a":1}', missing: [] });
+  });
+
+  test("substitutes a single placeholder from the environment", () => {
+    const result = expandEnvVars("token=${TEST_TOKEN}", { TEST_TOKEN: "abc123" });
+    expect(result).toEqual({ content: "token=abc123", missing: [] });
+  });
+
+  test("expands multiple distinct vars in one file", () => {
+    const result = expandEnvVars("${A}/${B}", { A: "one", B: "two" });
+    expect(result).toEqual({ content: "one/two", missing: [] });
+  });
+
+  test("expands placeholders adjacent to surrounding text", () => {
+    const result = expandEnvVars("Bearer ${TOKEN} at ${HOME}/bin/x", { TOKEN: "t", HOME: "/root" });
+    expect(result).toEqual({ content: "Bearer t at /root/bin/x", missing: [] });
+  });
+
+  test("expands every occurrence of a repeated var", () => {
+    const result = expandEnvVars("${V}-${V}", { V: "x" });
+    expect(result).toEqual({ content: "x-x", missing: [] });
+  });
+
+  test("collects unset vars deduplicated in order of first appearance, leaving placeholders", () => {
+    const result = expandEnvVars("${B} ${A} ${B} ${SET}", { SET: "ok" });
+    expect(result.missing).toEqual(["B", "A"]);
+    expect(result.content).toBe("${B} ${A} ${B} ok");
   });
 });
