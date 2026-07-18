@@ -5,6 +5,7 @@ import { join } from "path";
 import type { Skill, McpConfig } from "../config";
 import { parseFrontmatter } from "../config";
 import { log } from "../log";
+import { configRootFor } from "./descriptors";
 import { mergeTargetConfig } from "./merge";
 import { installSkillsToDir, copySkillAssets } from "./shared";
 
@@ -35,7 +36,7 @@ export function convertSkillToCommand(content: string): string {
 }
 
 function installSkillsGlobal(skills: Skill[]): void {
-  const commandsDir = join(homedir(), ".claude", "commands");
+  const commandsDir = join(configRootFor("claude", homedir()), "commands");
   mkdirSync(commandsDir, { recursive: true });
 
   for (const skill of skills) {

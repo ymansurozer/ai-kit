@@ -10,12 +10,13 @@ import {
   type HttpMcpTransportConfig,
 } from "../config";
 import { log } from "../log";
+import { configRootFor } from "./descriptors";
 import { mergeTargetConfig } from "./merge";
 import { installSkillsToDir } from "./shared";
 
 export function installOpencode(skills: Skill[], mcps: McpConfig[], global: boolean, cwd: string): void {
   if (global) {
-    installSkillsToDir(skills, join(homedir(), ".config", "opencode", "skills"), "~/.config/opencode/skills");
+    installSkillsToDir(skills, join(configRootFor("opencode", homedir()), "skills"), "~/.config/opencode/skills");
     installMcpsGlobal(mcps);
   } else {
     installSkillsToDir(skills, join(cwd, ".opencode", "skills"), ".opencode/skills");
@@ -57,8 +58,9 @@ function installMcpsGlobal(mcps: McpConfig[]): void {
   if (mcps.length === 0) {
     return;
   }
-  const configPath = join(homedir(), ".config", "opencode", "opencode.json");
-  mkdirSync(join(homedir(), ".config", "opencode"), { recursive: true });
+  const configRoot = configRootFor("opencode", homedir());
+  const configPath = join(configRoot, "opencode.json");
+  mkdirSync(configRoot, { recursive: true });
   mergeMcpsJson(mcps, configPath, "~/.config/opencode/opencode.json");
 }
 

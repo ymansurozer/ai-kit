@@ -4,6 +4,7 @@ import { log } from "./log";
 import { saveInstallation } from "./state";
 import { installClaude } from "./targets/claude";
 import { installCodex } from "./targets/codex";
+import { DESCRIPTORS, type TargetName } from "./targets/descriptors";
 import { installOpencode } from "./targets/opencode";
 import { installPi } from "./targets/pi";
 
@@ -62,14 +63,15 @@ export function install(target: string, options: InstallOptions): void {
     mcps = filtered;
   }
 
-  const installedMcps = target === "pi" ? [] : mcps;
+  const supportsMcps = DESCRIPTORS[target as TargetName].supportsMcps;
+  const installedMcps = supportsMcps ? mcps : [];
 
   const cwd = options.cwd || process.cwd();
 
   log.heading(`Installing to ${target}${options.global ? " (global)" : ""}`);
 
   if (skills.length === 0 && installedMcps.length === 0) {
-    if (target === "pi" && mcps.length > 0) {
+    if (!supportsMcps && mcps.length > 0) {
       log.warn("Pi does not support MCPs — nothing to install");
       return;
     }
@@ -84,7 +86,7 @@ export function install(target: string, options: InstallOptions): void {
   // additions/removals; a cherry-picked install records its explicit list. Pi has
   // no MCP support, so its mcps selection is permanently empty, not "all".
   const recordedSkills = options.skills ? skills.map((s) => s.name) : undefined;
-  const recordedMcps = options.mcps ? installedMcps.map((m) => m.name) : target === "pi" ? [] : undefined;
+  const recordedMcps = options.mcps ? installedMcps.map((m) => m.name) : supportsMcps ? undefined : [];
 
   saveInstallation({
     target,
