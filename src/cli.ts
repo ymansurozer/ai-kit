@@ -75,6 +75,9 @@ function showHelp(): void {
     ai-kit install pi
     ai-kit skill add frontend-design --from anthropics/skills
     ai-kit skill update
+    ai-kit config capture
+    ai-kit config install --force
+    ai-kit config machine
     ai-kit sync
 `);
 }
