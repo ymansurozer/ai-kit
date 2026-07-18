@@ -37,7 +37,7 @@ function showHelp(): void {
 
   Usage:
     ai-kit install <target>                   Install skills and MCPs to a target
-    ai-kit config install [target]            Install harness config to a target (global; default all)
+    ai-kit config install [target] [--force]  Install harness config to a target (global; default all)
     ai-kit list                               List available skills and MCPs
     ai-kit sync                               Re-sync all tracked installations
     ai-kit watch                              Watch the repo and auto-sync on new commits
@@ -55,6 +55,7 @@ function showHelp(): void {
 
   Flags:
     --global                    Install globally instead of per-repo
+    --force                     Overwrite config destinations even if they drifted since the last install
     --skills <names>            Cherry-pick skills (comma-separated)
     --mcps <names>              Cherry-pick MCPs (comma-separated)
     --from <source>             External skill source (GitHub shorthand), e.g. anthropics/skills
@@ -98,7 +99,9 @@ if (import.meta.main) {
       case "config": {
         const verb = args[1];
         if (verb === "install") {
-          configInstall(args[2]);
+          const target = args[2] && !args[2].startsWith("--") ? args[2] : undefined;
+          const flags = parseFlags(args.slice(2));
+          configInstall(target, { force: flags.force === true });
         } else {
           log.error(`Unknown command: ai-kit config ${verb ?? ""}`.trim() + ". Available: install");
           showHelp();
