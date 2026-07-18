@@ -12,6 +12,7 @@ import {
   type HttpMcpTransportConfig,
 } from "../config";
 import { log } from "../log";
+import { configRootFor } from "./descriptors";
 import { installSkillsToDir } from "./shared";
 
 interface TomlSection {
@@ -46,10 +47,20 @@ function installMcpsLocal(mcps: McpConfig[], cwd: string): void {
 }
 
 function installMcpsGlobal(mcps: McpConfig[]): void {
+  mergeCodexMcpsGlobal(mcps, homedir());
+}
+
+/**
+ * Merge MCP server sections into Codex's global `config.toml` under `home`.
+ * Exported so the standalone `config install` can restore MCP sections it just
+ * overwrote when it rewrote `config.toml` from the repo (PRD behavior 10). No-op
+ * for an empty list, so a config-only machine's file is left untouched.
+ */
+export function mergeCodexMcpsGlobal(mcps: McpConfig[], home: string): void {
   if (mcps.length === 0) {
     return;
   }
-  const configPath = join(homedir(), ".codex", "config.toml");
+  const configPath = join(configRootFor("codex", home), "config.toml");
   mergeMcpsToml(mcps, configPath, "~/.codex/config.toml");
 }
 
@@ -73,6 +84,47 @@ function mergeMcpsToml(mcps: McpConfig[], configPath: string, displayPath: strin
 
 export function removeTomlSection(content: string, sectionPrefix: string): string {
   return extractTomlSections(content, sectionPrefix).content;
+}
+
+/**
+ * Strip the `[mcp_servers.<name>]` sections (and their subsections like `.env`)
+ * that ai-kit rendered for the given MCP `names`, leaving every other line intact
+ * — user settings and hand-added MCP servers whose names aren't in `names` survive.
+ * Used by `config capture` so `mcps/` + `servers/` stay the single source of truth
+ * for MCP config (PRD behavior 19). Returns `content` unchanged (byte-for-byte)
+ * when nothing matched; otherwise re-trims trailing whitespace like the installer.
+ */
+export function stripCodexMcpSections(content: string, names: string[]): string {
+  if (names.length === 0) {
+    return content;
+  }
+  const known = new Set(names);
+  const skipped = new Set<number>();
+  for (const section of parseTomlSections(content)) {
+    const server = mcpServerFromSection(section.name);
+    if (server && known.has(server)) {
+      for (let index = section.start; index <= section.end; index++) {
+        skipped.add(index);
+      }
+    }
+  }
+  if (skipped.size === 0) {
+    return content;
+  }
+  const kept = content.split("\n").filter((_, index) => !skipped.has(index));
+  return kept.join("\n").trimEnd() + "\n";
+}
+
+/** The MCP name a `mcp_servers.<name>` or `mcp_servers.<name>.<sub>` section belongs
+ * to, or null for any section that isn't an MCP server section. */
+function mcpServerFromSection(sectionName: string): string | null {
+  const prefix = "mcp_servers.";
+  if (!sectionName.startsWith(prefix)) {
+    return null;
+  }
+  const rest = sectionName.slice(prefix.length);
+  const dot = rest.indexOf(".");
+  return dot === -1 ? rest : rest.slice(0, dot);
 }
 
 export function buildTomlSection(mcp: McpConfig): string {

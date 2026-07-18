@@ -71,7 +71,7 @@ cd ~/ai-kit
 bun install && bun link
 ```
 
-> Requires [Bun](https://bun.sh). Zero runtime dependencies.
+> Requires [Bun](https://bun.sh). Runtime deps are minimal: `defu` + `smol-toml` for config deep-merge and TOML serialization, plus `fastmcp` + `zod` if you write your own local servers.
 
 ### 2. Add your skills
 
@@ -238,6 +238,94 @@ export CREDENTIALS_FILE="$HOME/.config/example-credentials.json"
 
 After editing, `source ~/.zshrc` and **restart the AI tool** (Claude Code, Codex, etc.) — long-running processes won't pick up new exports. `direnv` works too if you prefer per-directory scoping.
 
+> Config files (below) treat `${VAR}` differently — they're expanded **at install time**, not passed through. See [`${VAR}` expansion](#var-expansion--resolved-at-install-not-launch).
+
+## Centralized harness config
+
+Skills and MCPs are only part of a harness's setup. The rest — Claude Code's `settings.json`, Codex's `config.toml`, global instruction files, keybindings, hooks, statuslines — lives in each tool's config directory, and until now only on the machine you set it up on. AI Kit centralizes that too.
+
+Drop a file into `config/<target>/` and its path inside that folder **is** its destination path relative to the harness's config root:
+
+| Target   | Config root          |
+| -------- | -------------------- |
+| Claude   | `~/.claude`          |
+| Codex    | `~/.codex`           |
+| Pi       | `~/.pi/agent`        |
+| OpenCode | `~/.config/opencode` |
+
+So `config/claude/settings.json` installs to `~/.claude/settings.json`, and `config/claude/hooks/pre.sh` mirrors through to `~/.claude/hooks/pre.sh`. Subdirectories nest exactly as they land — no per-file mapping to maintain.
+
+Config is **global-scope only** and rides the existing install:
+
+```bash
+ai-kit config install            # install config for every target
+ai-kit config install claude     # just one target
+ai-kit install all --global      # skills + MCPs + config together, the full new-machine ritual
+```
+
+A per-repo install (`ai-kit install claude`, no `--global`) never touches config — skills and MCPs only, exactly as before.
+
+### Per-machine overlays
+
+Machines differ. Express the delta as an `@<machine>` overlay: files under `config/@<machine>/<target>/` merge over the base tree, on that machine only.
+
+- **JSON and TOML** deep-merge — objects and tables merge recursively; arrays and scalars in the overlay win.
+- **Any other file type** is replaced wholesale by the overlay.
+- An overlay file with no base counterpart installs on that machine alone.
+
+The machine name is your normalized hostname (lowercased, `.local` stripped). Override it when hostnames collide or aren't stable:
+
+```bash
+ai-kit config machine            # print the effective name and where it came from
+ai-kit config machine devbox     # pin an overlay name for this machine
+```
+
+### `${VAR}` expansion — resolved at install, not launch
+
+Config files support `${VAR}` placeholders too, but they behave **differently** from [MCP placeholders](#where-to-set-the-values): a config `${VAR}` is expanded from your environment **at install time**, then written concretely into the harness's config file — harnesses don't resolve `${VAR}` in their own settings. MCP placeholders, by contrast, pass through untouched and resolve at MCP launch time.
+
+If a referenced variable is unset, that one file is skipped and reported by name; the rest still install. Set it and re-run.
+
+### Drift-aware overwrites
+
+AI Kit records a content hash of every config file it writes, and on the next install compares:
+
+- **Unchanged since AI Kit last wrote it** → overwritten freely; the repo wins.
+- **Modified out from under it** — drift, e.g. Claude Code wrote a permission grant into `settings.json` — → skipped and reported with a reconcile hint.
+- **Already exists but AI Kit has never managed it** (adopting config on an existing machine) → also skipped, treated like drift.
+
+Drift is never resolved automatically. You choose:
+
+```bash
+ai-kit config install --force    # the repo version wins, drift and all
+ai-kit config capture            # or pull the machine's live config back into the repo
+```
+
+### Capturing config back into the repo
+
+`ai-kit config capture` is the reverse direction — it copies a machine's live config into the base tree for git-diff review. It grabs the union of files already tracked in the repo and each target's curated well-known files that exist on the machine.
+
+```bash
+ai-kit config capture                          # every target
+ai-kit config capture claude                   # one target
+ai-kit config capture claude --file mcp.json   # one path, even if not curated (adds it to tracking)
+```
+
+Capture never reverse-substitutes secrets — git diff is the review layer — but it warns when a captured value overwrites a `${VAR}` placeholder in the repo copy, so you re-placeholder before committing. It also strips the MCP sections AI Kit itself renders into `config.toml` / `opencode.json`, keeping `mcps/` the single source of truth. `~/.claude.json` and Claude's `commands/` (AI Kit's own skill output) are runtime state, never captured.
+
+### Seeding the repo from an existing machine
+
+Day one, your config already exists on your main machine. Pull it in, review, re-placeholder any secrets, commit:
+
+```bash
+ai-kit config capture      # copy live config into config/
+git diff                   # review what got grabbed
+# swap real tokens / local paths back to ${VAR} placeholders
+git commit -am "Seed harness config"
+```
+
+From then on a new machine is one command — `ai-kit install all --global` lays down skills, MCPs, and config together — and `ai-kit watch` keeps every machine current as you commit changes.
+
 ## Where things land
 
 Both skills and MCPs (including local servers) support two install scopes:
@@ -265,6 +353,8 @@ Both skills and MCPs (including local servers) support two install scopes:
 
 You can mix both — install some skills globally and others per-repo. `ai-kit sync` re-installs to all tracked locations, re-scanning the repo so newly added or removed skills/MCPs propagate.
 
+Harness config is global-only and mirrors `config/<target>/` into each tool's config root (`~/.claude`, `~/.codex`, `~/.pi/agent`, `~/.config/opencode`) — see [Centralized harness config](#centralized-harness-config).
+
 ## All commands
 
 | Command                                   | What it does                                 |
@@ -274,7 +364,10 @@ You can mix both — install some skills globally and others per-repo. `ai-kit s
 | `ai-kit install all`                      | Fan out to every supported target            |
 | `ai-kit install <target> --skills a,b`    | Install only specific skills                 |
 | `ai-kit install <target> --mcps x,y`      | Install only specific MCPs                   |
-| `ai-kit list`                             | List all available skills and MCPs           |
+| `ai-kit list`                             | List all available skills, MCPs, and config  |
+| `ai-kit config install [target]`          | Install centralized harness config (global)  |
+| `ai-kit config capture [target]`          | Copy live machine config into the repo tree  |
+| `ai-kit config machine [name]`            | Show or set this machine's overlay name      |
 | `ai-kit skill add <name>`                 | Scaffold a new skill                         |
 | `ai-kit skill add <name> --from <source>` | Fetch a skill from the ecosystem             |
 | `ai-kit skill update`                     | Re-fetch all third-party skills              |
@@ -298,7 +391,7 @@ ai-kit watch                    # poll every 45s (default)
 ai-kit watch --interval 30      # poll every 30s
 ```
 
-On each tick it fetches. When the working tree is clean **and** the branch is strictly behind its upstream, it fast-forwards (`git pull --ff-only`) and then reinstalls — to **every** target this machine has already installed, never a subset. That parity rule matters: a watcher running on several machines reinstalls exactly the set each machine tracks in `~/.ai-kit/state.json`, so no target silently drifts. Run `ai-kit install all --global` once on a new machine and `watch` keeps all four in step from then on.
+On each tick it fetches. When the working tree is clean **and** the branch is strictly behind its upstream, it fast-forwards (`git pull --ff-only`) and then reinstalls — to **every** target this machine has already installed, never a subset. That parity rule matters: a watcher running on several machines reinstalls exactly the set each machine tracks in `~/.ai-kit/state.json`, so no target silently drifts. A global reinstall carries harness config along with skills and MCPs, so committed config changes propagate on the next tick too. Run `ai-kit install all --global` once on a new machine and `watch` keeps all four in step from then on.
 
 Because a full install records its selection as "all" (not a frozen list of skill names), `sync` and `watch` **re-scan the repo every cycle** — so skills and MCPs you _add_ or _remove_ propagate too, not just edits to existing ones. A cherry-picked install (`--skills`/`--mcps`) records that explicit selection instead, and a later cherry-picked install only ever _widens_ what a machine syncs (it never narrows an existing "all", so you can't accidentally downgrade a machine to syncing a single skill). To deliberately narrow what a machine syncs, edit its `~/.ai-kit/state.json`.
 
@@ -310,6 +403,7 @@ Some states are reported and skipped, never resolved automatically:
 - **Diverged branch** — if a pull wouldn't fast-forward, it stops and reports; it never merges, rebases, or stashes for you.
 - **No upstream / fetch failure** — reported once and retried on later ticks (a laptop going offline won't crash or spam the loop).
 - **Install failure** — reported, then backed off rather than retried hot; the next successful sync clears the state.
+- **Config drift** — a config destination modified since AI Kit last wrote it (or never managed by AI Kit) is skipped and reported, never overwritten. Drift is not an install failure and doesn't trigger backoff; the fix is `ai-kit config capture` + commit, or `ai-kit config install --force`. Claude Code writing permission grants into `settings.json` makes this routine on active machines — reported, not resolved.
 
 ### Run it as a background service
 
@@ -362,6 +456,9 @@ Browse available third-party skills at **[skills.sh](https://skills.sh)**.
 - **Secret-free MCP placeholders** — commit `${VAR}` references once, then render them to each harness at install time
 - **Agent Skills standard** — `SKILL.md` works across 30+ tools without conversion (Claude global commands are the one exception — the CLI handles it)
 - **Local MCP servers** — write your own with [FastMCP](https://github.com/punkpeye/fastmcp), paths resolved automatically at install time
+- **Mirror tree for config** — a file's path inside `config/<target>/` _is_ its destination under the harness config root; no per-file mapping to maintain
+- **Drift-aware config** — config overwrites only when the destination still matches what AI Kit last wrote; drift is reported, never clobbered
+- **Capture, not just install** — pull a machine's live config back into the repo for git-diff review, the reverse of install
 
 ## Using as a template
 

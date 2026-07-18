@@ -3,7 +3,14 @@ import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { readStateFrom, writeStateTo, saveInstallationTo, mergeSelection } from "./state";
+import {
+  readStateFrom,
+  writeStateTo,
+  saveInstallationTo,
+  mergeSelection,
+  mergeConfigFiles,
+  findInstallationFrom,
+} from "./state";
 import type { Installation } from "./state";
 
 describe("state", () => {
@@ -138,6 +145,102 @@ describe("state", () => {
     inst = readStateFrom(statePath).installations[0];
     expect(inst.skills).toBeUndefined();
     expect(inst.mcps).toBeUndefined();
+  });
+
+  test("config flag sticks across a later install that omits it", () => {
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      path: "/home/u",
+      config: true,
+      skills: [],
+      mcps: [],
+      installedAt: "2026-01-01T00:00:00Z",
+    });
+    // A regular global install of the same key does not carry config:true.
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      path: "/home/u",
+      skills: undefined,
+      mcps: undefined,
+      installedAt: "2026-02-01T00:00:00Z",
+    });
+
+    const inst = readStateFrom(statePath).installations[0];
+    expect(inst.config).toBe(true);
+    // The regular install still promotes selections to "all".
+    expect(inst.skills).toBeUndefined();
+    expect(inst.mcps).toBeUndefined();
+  });
+
+  test("saveInstallationTo merges configFiles hashes per key (new wins, untouched kept)", () => {
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      path: "/home/u",
+      config: true,
+      skills: [],
+      mcps: [],
+      configFiles: { "settings.json": "hashA", "CLAUDE.md": "hashB" },
+      installedAt: "2026-01-01T00:00:00Z",
+    });
+    // A later run rewrites only settings.json; CLAUDE.md keeps its prior hash.
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      path: "/home/u",
+      config: true,
+      skills: [],
+      mcps: [],
+      configFiles: { "settings.json": "hashA2" },
+      installedAt: "2026-02-01T00:00:00Z",
+    });
+
+    const inst = readStateFrom(statePath).installations[0];
+    expect(inst.configFiles).toEqual({ "settings.json": "hashA2", "CLAUDE.md": "hashB" });
+  });
+
+  test("mergeConfigFiles merges new over prev, undefined only when both empty", () => {
+    expect(mergeConfigFiles({ a: "1" }, { a: "2", b: "3" })).toEqual({ a: "2", b: "3" });
+    expect(mergeConfigFiles({ a: "1" }, undefined)).toEqual({ a: "1" });
+    expect(mergeConfigFiles(undefined, { b: "2" })).toEqual({ b: "2" });
+    expect(mergeConfigFiles(undefined, undefined)).toBeUndefined();
+  });
+
+  test("findInstallationFrom matches on target + global + path", () => {
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      path: "/home/u",
+      config: true,
+      configFiles: { "settings.json": "h" },
+      skills: [],
+      mcps: [],
+      installedAt: "2026-01-01T00:00:00Z",
+    });
+    expect(findInstallationFrom(statePath, "claude", true, "/home/u")?.configFiles).toEqual({ "settings.json": "h" });
+    expect(findInstallationFrom(statePath, "codex", true, "/home/u")).toBeUndefined();
+  });
+
+  test("an old-format entry lacking configFiles loads and merges without error", () => {
+    writeStateTo(statePath, {
+      installations: [
+        { target: "claude", global: true, path: "/home/u", config: true, skills: [], mcps: [], installedAt: "old" },
+      ],
+    });
+    // Merging a new hash map onto an entry with no prior map just adopts the new map.
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      path: "/home/u",
+      config: true,
+      skills: [],
+      mcps: [],
+      configFiles: { "settings.json": "h1" },
+      installedAt: "new",
+    });
+    expect(readStateFrom(statePath).installations[0].configFiles).toEqual({ "settings.json": "h1" });
   });
 
   test("mergeSelection unions two explicit lists without duplicates", () => {
