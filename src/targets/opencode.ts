@@ -55,10 +55,20 @@ function installMcpsLocal(mcps: McpConfig[], cwd: string): void {
 }
 
 function installMcpsGlobal(mcps: McpConfig[]): void {
+  mergeOpencodeMcpsGlobal(mcps, homedir());
+}
+
+/**
+ * Merge MCP server sections into OpenCode's global `opencode.json` under `home`.
+ * Exported so the standalone `config install` can restore MCP sections it just
+ * overwrote when it rewrote `opencode.json` from the repo (PRD behavior 10). No-op
+ * for an empty list, so a config-only machine's file is left untouched.
+ */
+export function mergeOpencodeMcpsGlobal(mcps: McpConfig[], home: string): void {
   if (mcps.length === 0) {
     return;
   }
-  const configRoot = configRootFor("opencode", homedir());
+  const configRoot = configRootFor("opencode", home);
   const configPath = join(configRoot, "opencode.json");
   mkdirSync(configRoot, { recursive: true });
   mergeMcpsJson(mcps, configPath, "~/.config/opencode/opencode.json");

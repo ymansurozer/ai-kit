@@ -109,7 +109,11 @@ describe("configInstall", () => {
 
     const state = readStateFrom(statePath);
     const claude = state.installations.find((i) => i.target === "claude");
-    expect(claude).toMatchObject({ target: "claude", global: true, path: home, config: true });
+    // Global config state is keyed under path: undefined — the same key `install
+    // --global` uses — so a full install and a config-only install share one entry.
+    // (undefined round-trips through JSON as an absent key.)
+    expect(claude).toMatchObject({ target: "claude", global: true, config: true });
+    expect(claude!.path).toBeUndefined();
     // Fresh config-only entries record explicit empty selections (not undefined).
     expect(claude!.skills).toEqual([]);
     expect(claude!.mcps).toEqual([]);
@@ -319,12 +323,106 @@ describe("configInstall", () => {
     // Simulate a pre-slice-03 state file: an entry lacking configFiles entirely.
     writeStateTo(statePath, {
       installations: [
-        { target: "claude", global: true, path: home, config: true, skills: [], mcps: [], installedAt: "2026-01-01" },
+        {
+          target: "claude",
+          global: true,
+          path: undefined,
+          config: true,
+          skills: [],
+          mcps: [],
+          installedAt: "2026-01-01",
+        },
       ],
     });
 
     configInstall("claude", { home, configDir, statePath });
     // No recorded hash for the existing destination → adoption → skipped.
     expect(readFileSync(dest, "utf-8")).toBe("live-version");
+  });
+});
+
+describe("configInstall MCP re-merge on shared destination files (behavior 10)", () => {
+  let tmpDir: string;
+  let home: string;
+  let configDir: string;
+  let statePath: string;
+
+  const mcp = {
+    name: "playwright",
+    description: "browser automation",
+    config: { command: "npx", args: ["-y", "@test/playwright"] },
+    path: "/repo/mcps/playwright.json",
+  };
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "ai-kit-config-remerge-"));
+    home = join(tmpDir, "home");
+    configDir = join(tmpDir, "config");
+    statePath = join(tmpDir, "state.json");
+    mkdirSync(home, { recursive: true });
+    mkdirSync(configDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function writeConfig(relPath: string, content: string): void {
+    const full = join(configDir, relPath);
+    mkdirSync(join(full, ".."), { recursive: true });
+    writeFileSync(full, content);
+  }
+
+  // Represent a machine that already ran a full `install codex --global`: its entry
+  // records the "all" MCP selection (mcps omitted → undefined). The MCP list is
+  // injected via the seam so the test never reads the real repo mcps/ tree.
+  function seedPriorFullInstall(): void {
+    writeStateTo(statePath, {
+      installations: [{ target: "codex", global: true, config: true, installedAt: "2026-01-01" }],
+    });
+  }
+
+  test("re-merges MCP sections that rewriting config.toml would have dropped, keeping both", () => {
+    writeConfig("codex/config.toml", 'model = "gpt-5-codex"\n');
+    seedPriorFullInstall();
+
+    configInstall("codex", { home, configDir, statePath, mcps: [mcp] });
+
+    const dest = join(configRootFor("codex", home), "config.toml");
+    const content = readFileSync(dest, "utf-8");
+    // The repo config AND the MCP section both survive.
+    expect(content).toContain('model = "gpt-5-codex"');
+    expect(content).toContain("[mcp_servers.playwright]");
+  });
+
+  test("an immediate second install reports zero drift: content is byte-stable and still holds both", () => {
+    writeConfig("codex/config.toml", 'model = "gpt-5-codex"\n');
+    seedPriorFullInstall();
+
+    configInstall("codex", { home, configDir, statePath, mcps: [mcp] });
+    const dest = join(configRootFor("codex", home), "config.toml");
+    const first = readFileSync(dest, "utf-8");
+
+    // Second run: the recorded hash covers the post-merge file, so it overwrites
+    // without drift, rewrites the repo config, and re-merges the MCP section — the
+    // final bytes are identical to the first run.
+    configInstall("codex", { home, configDir, statePath, mcps: [mcp] });
+    const second = readFileSync(dest, "utf-8");
+
+    expect(second).toBe(first);
+    expect(second).toContain('model = "gpt-5-codex"');
+    expect(second).toContain("[mcp_servers.playwright]");
+  });
+
+  test("a config-only machine with no prior MCP install gets no injected MCP sections", () => {
+    writeConfig("codex/config.toml", 'model = "gpt-5-codex"\n');
+    // No prior installation record → nothing to restore.
+
+    configInstall("codex", { home, configDir, statePath, mcps: [mcp] });
+
+    const dest = join(configRootFor("codex", home), "config.toml");
+    const content = readFileSync(dest, "utf-8");
+    expect(content).toContain('model = "gpt-5-codex"');
+    expect(content).not.toContain("[mcp_servers.playwright]");
   });
 });
