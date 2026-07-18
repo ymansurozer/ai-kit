@@ -10,12 +10,13 @@ import {
   type HttpMcpTransportConfig,
 } from "../config";
 import { log } from "../log";
+import { configRootFor } from "./descriptors";
 import { mergeTargetConfig } from "./merge";
 import { installSkillsToDir } from "./shared";
 
 export function installOpencode(skills: Skill[], mcps: McpConfig[], global: boolean, cwd: string): void {
   if (global) {
-    installSkillsToDir(skills, join(homedir(), ".config", "opencode", "skills"), "~/.config/opencode/skills");
+    installSkillsToDir(skills, join(configRootFor("opencode", homedir()), "skills"), "~/.config/opencode/skills");
     installMcpsGlobal(mcps);
   } else {
     installSkillsToDir(skills, join(cwd, ".opencode", "skills"), ".opencode/skills");
@@ -54,12 +55,42 @@ function installMcpsLocal(mcps: McpConfig[], cwd: string): void {
 }
 
 function installMcpsGlobal(mcps: McpConfig[]): void {
+  mergeOpencodeMcpsGlobal(mcps, homedir());
+}
+
+/**
+ * Merge MCP server sections into OpenCode's global `opencode.json` under `home`.
+ * Exported so the standalone `config install` can restore MCP sections it just
+ * overwrote when it rewrote `opencode.json` from the repo (PRD behavior 10). No-op
+ * for an empty list, so a config-only machine's file is left untouched.
+ */
+export function mergeOpencodeMcpsGlobal(mcps: McpConfig[], home: string): void {
   if (mcps.length === 0) {
     return;
   }
-  const configPath = join(homedir(), ".config", "opencode", "opencode.json");
-  mkdirSync(join(homedir(), ".config", "opencode"), { recursive: true });
+  const configRoot = configRootFor("opencode", home);
+  const configPath = join(configRoot, "opencode.json");
+  mkdirSync(configRoot, { recursive: true });
   mergeMcpsJson(mcps, configPath, "~/.config/opencode/opencode.json");
+}
+
+/**
+ * Strip the MCP server entries ai-kit rendered (names in `names`) from a captured
+ * `opencode.json`'s `mcp` object, leaving hand-added servers and all other JSON
+ * intact. Used by `config capture` so `mcps/` + `servers/` stay the single source
+ * of truth for MCP config (PRD behavior 19). Re-serialized with 2-space indent and
+ * a trailing newline to match what the installer writes.
+ */
+export function stripOpencodeMcpEntries(content: string, names: string[]): string {
+  const parsed = JSON.parse(content) as Record<string, unknown>;
+  const mcp = parsed.mcp;
+  if (mcp && typeof mcp === "object" && !Array.isArray(mcp)) {
+    const servers = mcp as Record<string, unknown>;
+    for (const name of names) {
+      delete servers[name];
+    }
+  }
+  return JSON.stringify(parsed, null, 2) + "\n";
 }
 
 function mergeMcpsJson(mcps: McpConfig[], configPath: string, displayPath: string): void {
