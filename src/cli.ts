@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { add } from "./add";
+import { configCapture } from "./config-capture";
 import { configInstall } from "./config-install";
 import { install } from "./install";
 import { list } from "./list";
@@ -13,7 +14,7 @@ import { watch } from "./watch";
 
 const args = process.argv.slice(2);
 const command = args[0];
-const VALUE_FLAGS = new Set(["skills", "mcps", "from", "interval"]);
+const VALUE_FLAGS = new Set(["skills", "mcps", "from", "interval", "file"]);
 
 export function parseFlags(argv: string[]): Record<string, string | boolean> {
   const flags: Record<string, string | boolean> = {};
@@ -39,6 +40,7 @@ function showHelp(): void {
   Usage:
     ai-kit install <target>                   Install skills and MCPs to a target
     ai-kit config install [target] [--force]  Install harness config to a target (global; default all)
+    ai-kit config capture [target] [--file p] Copy live machine config into the repo tree for git-diff review
     ai-kit config machine [name]              Set this machine's overlay name, or print the effective name
     ai-kit list                               List available skills and MCPs
     ai-kit sync                               Re-sync all tracked installations
@@ -62,6 +64,7 @@ function showHelp(): void {
     --mcps <names>              Cherry-pick MCPs (comma-separated)
     --from <source>             External skill source (GitHub shorthand), e.g. anthropics/skills
     --interval <seconds>        Poll interval for watch, in seconds (default 45)
+    --file <relative-path>      Capture one path relative to the config root (config capture; requires a target)
 
   Examples:
     ai-kit install claude
@@ -106,11 +109,15 @@ if (import.meta.main) {
           const target = args[2] && !args[2].startsWith("--") ? args[2] : undefined;
           const flags = parseFlags(args.slice(2));
           configInstall(target, { force: flags.force === true });
+        } else if (verb === "capture") {
+          const target = args[2] && !args[2].startsWith("--") ? args[2] : undefined;
+          const flags = parseFlags(args.slice(2));
+          configCapture(target, { file: typeof flags.file === "string" ? flags.file : undefined });
         } else if (verb === "machine") {
           const name = args[2] && !args[2].startsWith("--") ? args[2] : undefined;
           configMachine(name);
         } else {
-          log.error(`Unknown command: ai-kit config ${verb ?? ""}`.trim() + ". Available: install, machine");
+          log.error(`Unknown command: ai-kit config ${verb ?? ""}`.trim() + ". Available: install, capture, machine");
           showHelp();
           process.exit(1);
         }
