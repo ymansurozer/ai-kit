@@ -28,3 +28,8 @@ Surface the feature everywhere a user discovers ai-kit. Covers PRD behaviors 24 
 - [08-capture-refinements.md](08-capture-refinements.md)
 
 ## Deviations
+
+- **Help text was already complete.** `showHelp()` in `src/cli.ts` already documented `config install [target] [--force]`, `config capture [target] [--file p]`, `config machine [name]`, `--force`, and `--file` (added by earlier slices). No gaps to fix; I added three `config` example lines to the Examples block for discoverability (behavior 26) rather than editing the command/flag docs.
+- **"Where things land" kept config out of the scope tables.** Config is global-only and mirror-tree (path == destination), so it doesn't fit the per-scope Skills/MCPs columns. Added a prose note + link to the new section instead of forcing a column (brief left this to my judgment).
+- **`ai-kit list` config section also names the targets each overlay touches** — a small extra beyond the minimal "which overlays exist + whether they apply", surfaced from the same directory scan.
+- **Commands table added three config rows** (`config install`/`capture`/`machine`); the `--force` variant is documented in the new section's prose, not as a fourth table row (brief said "the three config commands").

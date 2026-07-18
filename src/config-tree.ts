@@ -200,6 +200,75 @@ export function loadConfigTree(): ConfigTree {
   return loadConfigTreeFrom(CONFIG_ROOT, resolveMachineFrom(STATE_PATH).name);
 }
 
+/** One `@<machine>` overlay directory in the config tree. */
+export interface ConfigOverlaySummary {
+  /** Overlay machine name (the directory name without its leading `@`). */
+  machine: string;
+  /** Whether this overlay applies to the effective machine being summarized. */
+  applies: boolean;
+  /** Targets the overlay contributes files to. */
+  targets: TargetName[];
+}
+
+/** A read-only view of the config tree for `ai-kit list` (PRD behavior 24). */
+export interface ConfigTreeSummary {
+  /** Raw base file paths per target, from `config/<target>/` (overlays not merged in). */
+  base: Record<TargetName, string[]>;
+  /** Every `@<machine>` overlay directory found, with applicability to this machine. */
+  overlays: ConfigOverlaySummary[];
+  /** Effective machine name overlays are matched against. */
+  machine: string;
+}
+
+/** Recursively collect file paths under `dir`, relative to `dir` (POSIX-joined). */
+function collectRelPaths(dir: string, prefix: string, out: string[]): void {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      collectRelPaths(join(dir, entry.name), relPath, out);
+    } else if (entry.isFile()) {
+      out.push(relPath);
+    }
+  }
+}
+
+/**
+ * Summarize a config directory for `ai-kit list` (PRD behavior 24): the raw base
+ * files per target and every `@<machine>` overlay directory, each flagged for
+ * whether it applies to `machine`. Reads paths only — no content, no merge, no
+ * `${VAR}` expansion. Missing dir → empty summary. Follows the `*From(dir)`
+ * convention so the list section is testable against fixture trees.
+ */
+export function summarizeConfigTreeFrom(dir: string, machine: string): ConfigTreeSummary {
+  const base = { claude: [], codex: [], pi: [], opencode: [] } as Record<TargetName, string[]>;
+  const overlays: ConfigOverlaySummary[] = [];
+  if (!existsSync(dir)) {
+    return { base, overlays, machine };
+  }
+
+  for (const target of TARGET_LIST) {
+    const baseDir = join(dir, target);
+    if (existsSync(baseDir)) {
+      const rels: string[] = [];
+      collectRelPaths(baseDir, "", rels);
+      base[target] = rels.toSorted();
+    }
+  }
+
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.startsWith("@")) {
+      continue;
+    }
+    const overlayMachine = entry.name.slice(1);
+    const overlayDir = join(dir, entry.name);
+    const targets = TARGET_LIST.filter((target) => existsSync(join(overlayDir, target)));
+    overlays.push({ machine: overlayMachine, applies: overlayMachine === machine, targets });
+  }
+  overlays.sort((a, b) => a.machine.localeCompare(b.machine));
+
+  return { base, overlays, machine };
+}
+
 /** Matches every `${VAR}` placeholder (VAR = a shell-style identifier). Global so
  * `String.replace` walks all occurrences, including ones adjacent to other text. */
 const CONFIG_VAR_PATTERN = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
