@@ -1,5 +1,5 @@
 ---
-status: open
+status: in-progress
 created_at: 2026-07-18
 ---
 

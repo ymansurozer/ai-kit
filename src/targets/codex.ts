@@ -12,6 +12,7 @@ import {
   type HttpMcpTransportConfig,
 } from "../config";
 import { log } from "../log";
+import { configRootFor } from "./descriptors";
 import { installSkillsToDir } from "./shared";
 
 interface TomlSection {
@@ -49,7 +50,7 @@ function installMcpsGlobal(mcps: McpConfig[]): void {
   if (mcps.length === 0) {
     return;
   }
-  const configPath = join(homedir(), ".codex", "config.toml");
+  const configPath = join(configRootFor("codex", homedir()), "config.toml");
   mergeMcpsToml(mcps, configPath, "~/.codex/config.toml");
 }
 
