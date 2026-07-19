@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import { dirname, join } from "path";
 
-import { AI_KIT_ROOT, loadMcps, type McpConfig } from "./config";
-import { CONFIG_DIR, expandEnvVars, loadConfigTreeFrom, type ConfigFile } from "./config-tree";
+import { loadMcps, type McpConfig } from "./config";
+import { defaultConfigDir, expandEnvVars, loadConfigTreeFrom, type ConfigFile } from "./config-tree";
 import { log } from "./log";
 import { resolveMachineFrom } from "./machine";
 import { findInstallationFrom, saveInstallationTo, STATE_PATH } from "./state";
@@ -242,7 +242,7 @@ export interface ConfigPhaseOptions {
  * from the global (`path: undefined`) entry, the key `install` writes.
  */
 export function configPhase(target: TargetName, options: ConfigPhaseOptions): ConfigTargetOutcome {
-  const configDir = options.configDir ?? join(AI_KIT_ROOT, CONFIG_DIR);
+  const configDir = options.configDir ?? defaultConfigDir();
   const statePath = options.statePath ?? STATE_PATH;
   const env = options.env ?? process.env;
   const machine = options.machine ?? resolveMachineFrom(statePath).name;
@@ -299,7 +299,7 @@ export function finalizeMcpManagedHashes(target: TargetName, outcome: ConfigTarg
 export function configInstall(target?: string, options: ConfigInstallOptions = {}): void {
   const targets = resolveTargets(target);
   const home = options.home ?? homedir();
-  const configDir = options.configDir ?? join(AI_KIT_ROOT, CONFIG_DIR);
+  const configDir = options.configDir ?? defaultConfigDir();
   const statePath = options.statePath ?? STATE_PATH;
   const force = options.force ?? false;
   const env = options.env ?? process.env;

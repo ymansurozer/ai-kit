@@ -12,6 +12,16 @@ import { DESCRIPTORS, type TargetName } from "./targets/descriptors";
 export const CONFIG_DIR = "config";
 const CONFIG_ROOT = resolve(import.meta.dir, "..", CONFIG_DIR);
 
+/**
+ * Default config-tree directory: the repo's `config/`, overridable via the
+ * `AI_KIT_CONFIG_DIR` env var. The env seam exists for subprocess tests that
+ * drive the real install/sync flows — without it they would have to plant
+ * fixtures inside (and clean up) the live repo tree.
+ */
+export function defaultConfigDir(): string {
+  return process.env.AI_KIT_CONFIG_DIR ?? CONFIG_ROOT;
+}
+
 export interface ConfigFile {
   /** Destination path relative to the target's config root. */
   relPath: string;
@@ -216,7 +226,7 @@ export function loadConfigTreeFrom(dir: string, machine?: string): ConfigTree {
 }
 
 export function loadConfigTree(): ConfigTree {
-  return loadConfigTreeFrom(CONFIG_ROOT, resolveMachineFrom(STATE_PATH).name);
+  return loadConfigTreeFrom(defaultConfigDir(), resolveMachineFrom(STATE_PATH).name);
 }
 
 /** One `@<machine>` overlay directory in the config tree. */
