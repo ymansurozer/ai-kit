@@ -5,8 +5,12 @@ import { loadSkills, loadSkillsFrom } from "./config";
 import { fetchSkill } from "./fetch-skill";
 import { log } from "./log";
 
-export function update(name?: string): void {
-  const skills = loadSkills();
+export function update(
+  name?: string,
+  skillsDir?: string,
+  fetcher: typeof fetchSkill = fetchSkill,
+): void {
+  const skills = skillsDir ? loadSkillsFrom(skillsDir) : loadSkills();
 
   let sourced;
   if (name) {
@@ -35,7 +39,7 @@ export function update(name?: string): void {
       continue;
     }
 
-    const ok = fetchSkill(skill.name, skill.source.from);
+    const ok = fetcher(skill.name, skill.source.from, skill.source.skill);
     if (ok) {
       log.success(`Updated ${skill.name}`);
       updated++;

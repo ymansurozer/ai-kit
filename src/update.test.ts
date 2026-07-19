@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync, readFileSync
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { detach } from "./update";
+import { detach, update } from "./update";
 
 describe("detach", () => {
   let tmpDir: string;
@@ -57,5 +57,57 @@ describe("detach", () => {
   test("errors when skill is already local", () => {
     createSkill("my-skill");
     expect(() => detach("my-skill", skillsDir)).toThrow("already local");
+  });
+});
+
+describe("update", () => {
+  let tmpDir: string;
+  let skillsDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "ai-kit-update-"));
+    skillsDir = join(tmpDir, "skills");
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function createSourcedSkill(localName: string, opts: { from: string; skill: string }) {
+    const dir = join(skillsDir, localName);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "SKILL.md"), `---\nname: ${localName}\n---\nSkill content`);
+    writeFileSync(
+      join(dir, "source.json"),
+      JSON.stringify({ from: opts.from, skill: opts.skill, fetchedAt: "2026-01-01" }),
+    );
+  }
+
+  test("re-fetches a renamed skill using its recorded upstream identifier", () => {
+    createSourcedSkill("local-name", { from: "owner/repo", skill: "upstream-name" });
+
+    const calls: Array<[string, string, string | undefined]> = [];
+    const fakeFetcher = (localName: string, from: string, upstreamSkill?: string) => {
+      calls.push([localName, from, upstreamSkill]);
+      return true;
+    };
+
+    update("local-name", skillsDir, fakeFetcher);
+
+    expect(calls).toEqual([["local-name", "owner/repo", "upstream-name"]]);
+  });
+
+  test("passes the local name through when it matches the upstream identifier", () => {
+    createSourcedSkill("my-skill", { from: "owner/repo", skill: "my-skill" });
+
+    const calls: Array<[string, string, string | undefined]> = [];
+    const fakeFetcher = (localName: string, from: string, upstreamSkill?: string) => {
+      calls.push([localName, from, upstreamSkill]);
+      return true;
+    };
+
+    update("my-skill", skillsDir, fakeFetcher);
+
+    expect(calls).toEqual([["my-skill", "owner/repo", "my-skill"]]);
   });
 });
