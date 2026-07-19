@@ -41,7 +41,8 @@ describe("install", () => {
     const path = join(repoRoot, "mcps", `${name}.json`);
     writeFileSync(
       path,
-      JSON.stringify({ description: "test", config: { command: "npx", args: ["-y", `@test/${name}`] } }, null, 2) + "\n",
+      JSON.stringify({ description: "test", config: { command: "npx", args: ["-y", `@test/${name}`] } }, null, 2) +
+        "\n",
     );
     extraPaths.push(path);
     return path;
