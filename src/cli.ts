@@ -16,21 +16,55 @@ const args = process.argv.slice(2);
 const command = args[0];
 const VALUE_FLAGS = new Set(["skills", "mcps", "from", "interval", "file"]);
 
-export function parseFlags(argv: string[]): Record<string, string | boolean> {
+export interface ParsedArgs {
+  flags: Record<string, string | boolean>;
+  positionals: string[];
+}
+
+/**
+ * Split argv into flags and positionals. Flags starting with `--` are collected
+ * by name; value flags (VALUE_FLAGS) consume the next token when it isn't itself
+ * a flag. Every remaining token is a positional, wherever it appears — so a flag
+ * before a positional no longer hides it from the router.
+ */
+export function parseArgs(argv: string[]): ParsedArgs {
   const flags: Record<string, string | boolean> = {};
+  const positionals: string[] = [];
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i].startsWith("--")) {
-      const key = argv[i].slice(2);
+    const arg = argv[i];
+    if (arg.startsWith("--")) {
+      const key = arg.slice(2);
       const next = argv[i + 1];
-      if (VALUE_FLAGS.has(key) && next && !next.startsWith("--")) {
+      if (VALUE_FLAGS.has(key) && next !== undefined && !next.startsWith("--")) {
         flags[key] = next;
         i++;
       } else {
         flags[key] = true;
       }
+    } else {
+      positionals.push(arg);
     }
   }
-  return flags;
+  return { flags, positionals };
+}
+
+/** Warn (not error) about flags the command doesn't recognize, so typos surface. */
+export function unknownFlags(flags: Record<string, string | boolean>, known: readonly string[]): string[] {
+  return Object.keys(flags).filter((name) => !known.includes(name));
+}
+
+function warnUnknownFlags(flags: Record<string, string | boolean>, known: readonly string[]): void {
+  for (const name of unknownFlags(flags, known)) {
+    log.warn(`Unknown flag --${name} (ignored)`);
+  }
+}
+
+/** Error out on positionals the command didn't consume, naming them. */
+function rejectStrayPositionals(extra: string[]): void {
+  if (extra.length > 0) {
+    log.error(`Unexpected argument${extra.length > 1 ? "s" : ""}: ${extra.join(", ")}`);
+    process.exit(1);
+  }
 }
 
 function showHelp(): void {
@@ -83,7 +117,8 @@ function showHelp(): void {
 }
 
 if (import.meta.main) {
-  if (!command || command === "--help" || command === "-h") {
+  // `--help`/`-h` anywhere shows top-level help rather than warning as an unknown flag.
+  if (!command || args.includes("--help") || args.includes("-h")) {
     showHelp();
     process.exit(0);
   }
@@ -91,12 +126,14 @@ if (import.meta.main) {
   try {
     switch (command) {
       case "install": {
-        const target = args[1];
+        const { flags, positionals } = parseArgs(args.slice(1));
+        const [target, ...rest] = positionals;
         if (!target) {
           log.error("Missing target. Usage: ai-kit install <target>");
           process.exit(1);
         }
-        const flags = parseFlags(args.slice(2));
+        warnUnknownFlags(flags, ["global", "force", "skills", "mcps"]);
+        rejectStrayPositionals(rest);
         install(target, {
           global: flags.global === true,
           force: flags.force === true,
@@ -107,18 +144,20 @@ if (import.meta.main) {
       }
 
       case "config": {
-        const verb = args[1];
+        const { flags, positionals } = parseArgs(args.slice(1));
+        const [verb, target, ...rest] = positionals;
         if (verb === "install") {
-          const target = args[2] && !args[2].startsWith("--") ? args[2] : undefined;
-          const flags = parseFlags(args.slice(2));
+          warnUnknownFlags(flags, ["force"]);
+          rejectStrayPositionals(rest);
           configInstall(target, { force: flags.force === true });
         } else if (verb === "capture") {
-          const target = args[2] && !args[2].startsWith("--") ? args[2] : undefined;
-          const flags = parseFlags(args.slice(2));
+          warnUnknownFlags(flags, ["file"]);
+          rejectStrayPositionals(rest);
           configCapture(target, { file: typeof flags.file === "string" ? flags.file : undefined });
         } else if (verb === "machine") {
-          const name = args[2] && !args[2].startsWith("--") ? args[2] : undefined;
-          configMachine(name);
+          warnUnknownFlags(flags, []);
+          rejectStrayPositionals(rest);
+          configMachine(target);
         } else {
           log.error(`Unknown command: ai-kit config ${verb ?? ""}`.trim() + ". Available: install, capture, machine");
           showHelp();
@@ -128,18 +167,24 @@ if (import.meta.main) {
       }
 
       case "list": {
+        const { flags, positionals } = parseArgs(args.slice(1));
+        warnUnknownFlags(flags, []);
+        rejectStrayPositionals(positionals);
         list();
         break;
       }
 
       case "sync": {
+        const { flags, positionals } = parseArgs(args.slice(1));
+        warnUnknownFlags(flags, []);
+        rejectStrayPositionals(positionals);
         sync();
         break;
       }
 
       case "watch": {
-        const verb = args[1];
-        const flags = parseFlags(args.slice(verb && !verb.startsWith("--") ? 2 : 1));
+        const { flags, positionals } = parseArgs(args.slice(1));
+        const [verb, ...rest] = positionals;
         const interval = typeof flags.interval === "string" ? Number(flags.interval) : NaN;
         if (typeof flags.interval === "string" && (!Number.isFinite(interval) || interval <= 0)) {
           log.error("--interval must be a positive number of seconds");
@@ -148,12 +193,19 @@ if (import.meta.main) {
         const intervalSeconds = Number.isFinite(interval) ? interval : undefined;
 
         if (verb === "install") {
+          warnUnknownFlags(flags, ["interval"]);
+          rejectStrayPositionals(rest);
           installService({ intervalSeconds });
         } else if (verb === "uninstall") {
+          warnUnknownFlags(flags, ["interval"]);
+          rejectStrayPositionals(rest);
           uninstallService();
         } else if (verb === "status") {
+          warnUnknownFlags(flags, ["interval"]);
+          rejectStrayPositionals(rest);
           statusService();
-        } else if (!verb || verb.startsWith("--")) {
+        } else if (!verb) {
+          warnUnknownFlags(flags, ["interval"]);
           watch({ intervalMs: intervalSeconds !== undefined ? intervalSeconds * 1000 : undefined });
         } else {
           log.error(`Unknown command: ai-kit watch ${verb}`);
@@ -167,25 +219,29 @@ if (import.meta.main) {
       case "mcp":
       case "server": {
         const resource = command;
-        const verb = args[1];
+        const { flags, positionals } = parseArgs(args.slice(1));
+        const [verb, name, ...rest] = positionals;
         if (verb === "add") {
-          const name = args[2];
           if (!name) {
             log.error(`Usage: ai-kit ${resource} add <name>`);
             process.exit(1);
           }
-          const addFlags = parseFlags(args.slice(3));
+          warnUnknownFlags(flags, ["from"]);
+          rejectStrayPositionals(rest);
           add(resource, name, {
-            from: typeof addFlags.from === "string" ? addFlags.from : undefined,
+            from: typeof flags.from === "string" ? flags.from : undefined,
           });
         } else if (resource === "skill" && verb === "update") {
-          update(args[2]);
+          warnUnknownFlags(flags, []);
+          rejectStrayPositionals(rest);
+          update(name);
         } else if (resource === "skill" && verb === "detach") {
-          const name = args[2];
           if (!name) {
             log.error("Usage: ai-kit skill detach <name>");
             process.exit(1);
           }
+          warnUnknownFlags(flags, []);
+          rejectStrayPositionals(rest);
           detach(name);
         } else {
           log.error(`Unknown command: ai-kit ${resource} ${verb ?? ""}`.trim());
