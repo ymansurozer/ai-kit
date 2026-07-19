@@ -90,13 +90,6 @@ export function install(target: string, options: InstallOptions): void {
 
   const nothingToInstall = skills.length === 0 && installedMcps.length === 0;
 
-  // Pi user-error path: only MCPs requested for a target that can't install them.
-  // Nothing to install, record, or prune — bail exactly as before.
-  if (nothingToInstall && !supportsMcps && mcps.length > 0) {
-    log.warn("Pi does not support MCPs — nothing to install");
-    return;
-  }
-
   // Read the prior installation to know what was installed last run — the pruning
   // snapshot. A legacy entry (or none) has `undefined` snapshot fields → nothing to
   // prune, so the first run after upgrade only records, and removals propagate next.
@@ -105,6 +98,18 @@ export function install(target: string, options: InstallOptions): void {
   const priorSkills = prior?.installedSkills;
   const priorMcps = prior?.installedMcps;
   const hasPriorSnapshot = priorSkills !== undefined || priorMcps !== undefined;
+
+  // Pi user-error path: only MCPs requested for a target that can't install them.
+  // Warn either way, but only bail when there's no prior snapshot to reconcile. If
+  // Pi previously installed skills that are now gone (the repo still defines MCPs,
+  // as it usually does), the removal must still propagate — fall through to prune
+  // and record an empty snapshot even though this run installs nothing.
+  if (nothingToInstall && !supportsMcps && mcps.length > 0) {
+    log.warn("Pi does not support MCPs — nothing to install");
+    if (!hasPriorSnapshot) {
+      return;
+    }
+  }
 
   // A true no-op leaves state untouched: nothing to install, no prior snapshot to
   // prune against, and (for a global install) no config tree worth tracking. A prior

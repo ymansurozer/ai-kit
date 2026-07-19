@@ -336,6 +336,28 @@ describe("install", () => {
     expect(existsSync(join(claudeSkills, skillB))).toBe(false);
   });
 
+  test("pi prunes a dropped skill even when only MCPs remain in the repo (still warns)", () => {
+    const piSkills = join(homeDir, ".agents", "skills");
+
+    // First run installs the beforeEach skill and records a snapshot for pi.
+    expect(run(installScript("pi", { global: true })).status).toBe(0);
+    expect(existsSync(join(piSkills, skillName))).toBe(true);
+
+    // Delete every skill from the repo; the MCP stays, so this run has nothing pi
+    // can install and reaches the "Pi does not support MCPs" path — which must NOT
+    // short-circuit the prune now that a snapshot exists.
+    rmSync(skillDir, { recursive: true, force: true });
+    const second = run(installScript("pi", { global: true }));
+    expect(second.status).toBe(0);
+    expect(`${second.stdout}${second.stderr}`).toContain("Pi does not support MCPs");
+
+    expect(existsSync(join(piSkills, skillName))).toBe(false);
+    const state = JSON.parse(readFileSync(join(homeDir, ".ai-kit", "state.json"), "utf-8"));
+    const pi = state.installations.find((i: { target: string }) => i.target === "pi");
+    expect(pi.installedSkills).toEqual([]);
+    expect(pi.installedMcps).toEqual([]);
+  });
+
   test("an install with nothing to install this run still prunes leftovers from the prior snapshot", () => {
     const claudeSkills = join(homeDir, ".claude", "skills");
     const claudeJson = join(homeDir, ".claude.json");
