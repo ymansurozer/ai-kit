@@ -74,9 +74,11 @@ describe("loadConfigTreeFrom", () => {
     expect(() => loadConfigTreeFrom(tmpDir)).toThrow(/commands/);
   });
 
-  test(".gitkeep markers are never collected, at any depth", () => {
+  test(".gitkeep markers and OS junk like .DS_Store are never collected, at any depth", () => {
     writeFixture("claude/.gitkeep", "");
     writeFixture("claude/hooks/.gitkeep", "");
+    writeFixture("claude/.DS_Store", "junk");
+    writeFixture("claude/hooks/.DS_Store", "junk");
     writeFixture("claude/settings.json", "{}");
 
     const tree = loadConfigTreeFrom(tmpDir);
