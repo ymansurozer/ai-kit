@@ -28,12 +28,46 @@ export interface InstallOptions {
   cwd?: string;
   /** Overwrite drifted config destinations on a global install (PRD behavior 9). */
   force?: boolean;
+  /**
+   * Internal: set by the `target === "all"` fan-out once it has already warned
+   * about not-found names, so each per-target call doesn't warn again.
+   */
+  suppressNotFoundWarnings?: boolean;
+}
+
+/**
+ * Warn about requested skill/MCP names that don't exist in the repo exactly
+ * once, before the `all` fan-out calls `install()` per target — otherwise each
+ * target re-resolves the same cherry-picked selection and warns again, so one
+ * typo would log 4x.
+ */
+function warnNotFoundOnce(options: InstallOptions): void {
+  if (options.skills) {
+    const skills = loadSkills();
+    const found = new Set(skills.map((s) => s.name));
+    for (const name of options.skills) {
+      if (!found.has(name)) {
+        log.warn(`Skill not found: ${name}`);
+      }
+    }
+  }
+
+  if (options.mcps) {
+    const mcps = loadMcps();
+    const found = new Set(mcps.map((m) => m.name));
+    for (const name of options.mcps) {
+      if (!found.has(name)) {
+        log.warn(`MCP not found: ${name}`);
+      }
+    }
+  }
 }
 
 export function install(target: string, options: InstallOptions): void {
   if (target === "all") {
+    warnNotFoundOnce(options);
     for (const t of Object.keys(TARGETS)) {
-      install(t, options);
+      install(t, { ...options, suppressNotFoundWarnings: true });
     }
     return;
   }
@@ -61,10 +95,12 @@ export function install(target: string, options: InstallOptions): void {
   if (options.skills) {
     const requested = new Set(options.skills);
     const filtered = skills.filter((s) => requested.has(s.name));
-    const found = new Set(filtered.map((s) => s.name));
-    for (const name of requested) {
-      if (!found.has(name)) {
-        log.warn(`Skill not found: ${name}`);
+    if (!options.suppressNotFoundWarnings) {
+      const found = new Set(filtered.map((s) => s.name));
+      for (const name of requested) {
+        if (!found.has(name)) {
+          log.warn(`Skill not found: ${name}`);
+        }
       }
     }
     skills = filtered;
@@ -73,10 +109,12 @@ export function install(target: string, options: InstallOptions): void {
   if (options.mcps) {
     const requested = new Set(options.mcps);
     const filtered = mcps.filter((m) => requested.has(m.name));
-    const found = new Set(filtered.map((m) => m.name));
-    for (const name of requested) {
-      if (!found.has(name)) {
-        log.warn(`MCP not found: ${name}`);
+    if (!options.suppressNotFoundWarnings) {
+      const found = new Set(filtered.map((m) => m.name));
+      for (const name of requested) {
+        if (!found.has(name)) {
+          log.warn(`MCP not found: ${name}`);
+        }
       }
     }
     mcps = filtered;
