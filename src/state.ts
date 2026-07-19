@@ -15,6 +15,16 @@ export interface Installation {
   // its explicit list. See `mergeSelection` for how repeated installs combine.
   skills?: string[];
   mcps?: string[];
+  // The exact skill/MCP names ai-kit actually installed on the last run — the
+  // pruning snapshot. DISTINCT from `skills`/`mcps` above, which record intent
+  // (`undefined` = "all — re-scan the repo"). Prune = this snapshot − the names
+  // installed this run, so a skill/MCP dropped from the repo (or narrowed out of a
+  // cherry-pick) is deleted. Replaced WHOLESALE when the save provides a value —
+  // never unioned like `mergeSelection` (see `saveInstallationTo`). `[]` means
+  // "recorded: installed nothing"; `undefined` means "never recorded" (a legacy
+  // entry, or a config-only save that leaves the snapshot untouched) → prunes nothing.
+  installedSkills?: string[];
+  installedMcps?: string[];
   // Whether this global install includes the harness config tree. Once set it
   // sticks across subsequent installs of the same key (see `saveInstallationTo`).
   config?: boolean;
@@ -98,6 +108,12 @@ export function saveInstallationTo(path: string, installation: Installation): vo
       ...installation,
       skills: mergeSelection(prev.skills, installation.skills),
       mcps: mergeSelection(prev.mcps, installation.mcps),
+      // The pruning snapshot is replaced wholesale, NOT unioned like the selections
+      // above: it must reflect exactly what this run installed. A save that omits it
+      // (config-only install) leaves the prior snapshot untouched, so a real install's
+      // record is never clobbered by a config-only pass.
+      installedSkills: installation.installedSkills !== undefined ? installation.installedSkills : prev.installedSkills,
+      installedMcps: installation.installedMcps !== undefined ? installation.installedMcps : prev.installedMcps,
       config: installation.config || prev.config,
       configFiles: mergeConfigFiles(prev.configFiles, installation.configFiles),
     };
@@ -130,4 +146,13 @@ export function writeState(state: State): void {
 
 export function saveInstallation(installation: Installation): void {
   saveInstallationTo(STATE_PATH, installation);
+}
+
+/** Find the installation entry matching (target, global, path) in the real state. */
+export function findInstallation(
+  target: string,
+  global: boolean,
+  installPath: string | undefined,
+): Installation | undefined {
+  return findInstallationFrom(STATE_PATH, target, global, installPath);
 }

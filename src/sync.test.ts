@@ -148,4 +148,51 @@ describe("sync", () => {
     expect(toml).toContain(`[mcp_servers.${selectedMcpName}]`);
     expect(toml).toContain(`[mcp_servers.${extraMcpName}]`);
   });
+
+  test("end-to-end: sync removes a skill and MCP deleted from the repo; a hand-placed skill dir survives", () => {
+    const installUrl = pathToFileURL(join(repoRoot, "src", "install.ts")).href;
+
+    // A full per-repo install records a snapshot of everything in the repo now.
+    const installScript = `
+      import { install } from ${JSON.stringify(installUrl)};
+      install("codex", { global: false, cwd: ${JSON.stringify(projectDir)} });
+    `;
+    let result = spawnSync(process.execPath, ["-e", installScript], {
+      cwd: repoRoot,
+      env: { ...process.env, HOME: homeDir },
+      encoding: "utf8",
+    });
+    expect(result.status).toBe(0);
+
+    const skillsRoot = join(projectDir, ".agents", "skills");
+    expect(existsSync(join(skillsRoot, selectedSkillName, "SKILL.md"))).toBe(true);
+    expect(existsSync(join(skillsRoot, extraSkillName, "SKILL.md"))).toBe(true);
+
+    // A skill dir ai-kit never installed — the ownership contract must spare it.
+    mkdirSync(join(skillsRoot, "hand-skill"), { recursive: true });
+    writeFileSync(join(skillsRoot, "hand-skill", "SKILL.md"), "hand\n");
+
+    // Delete one skill + one MCP from the repo, then sync.
+    rmSync(extraSkillDir, { recursive: true, force: true });
+    rmSync(extraMcpPath, { force: true });
+
+    const syncScript = `
+      import { sync } from ${JSON.stringify(syncUrl)};
+      sync();
+    `;
+    result = spawnSync(process.execPath, ["-e", syncScript], {
+      cwd: repoRoot,
+      env: { ...process.env, HOME: homeDir },
+      encoding: "utf8",
+    });
+    expect(result.status).toBe(0);
+
+    expect(existsSync(join(skillsRoot, selectedSkillName, "SKILL.md"))).toBe(true);
+    expect(existsSync(join(skillsRoot, extraSkillName))).toBe(false);
+    expect(existsSync(join(skillsRoot, "hand-skill", "SKILL.md"))).toBe(true);
+
+    const toml = readFileSync(join(projectDir, ".codex", "config.toml"), "utf-8");
+    expect(toml).toContain(`[mcp_servers.${selectedMcpName}]`);
+    expect(toml).not.toContain(`[mcp_servers.${extraMcpName}]`);
+  });
 });

@@ -4,7 +4,8 @@ import type { Skill, McpConfig } from "./config";
 import { loadSkills, loadMcps } from "./config";
 import { configPhase, finalizeMcpManagedHashes, type ConfigTargetOutcome } from "./config-install";
 import { log } from "./log";
-import { saveInstallation } from "./state";
+import { pruneMcps, pruneSkills } from "./prune";
+import { findInstallation, saveInstallation } from "./state";
 import { installClaude } from "./targets/claude";
 import { installCodex } from "./targets/codex";
 import { DESCRIPTORS, type TargetName } from "./targets/descriptors";
@@ -81,32 +82,63 @@ export function install(target: string, options: InstallOptions): void {
     mcps = filtered;
   }
 
-  const supportsMcps = DESCRIPTORS[target as TargetName].supportsMcps;
+  const t = target as TargetName;
+  const supportsMcps = DESCRIPTORS[t].supportsMcps;
   const installedMcps = supportsMcps ? mcps : [];
 
   log.heading(`Installing to ${target}${options.global ? " (global)" : ""}`);
 
   const nothingToInstall = skills.length === 0 && installedMcps.length === 0;
 
-  if (nothingToInstall) {
-    if (!supportsMcps && mcps.length > 0) {
-      log.warn("Pi does not support MCPs — nothing to install");
+  // Read the prior installation to know what was installed last run — the pruning
+  // snapshot. A legacy entry (or none) has `undefined` snapshot fields → nothing to
+  // prune, so the first run after upgrade only records, and removals propagate next.
+  const installPath = options.global ? undefined : cwd;
+  const prior = findInstallation(target, options.global, installPath);
+  const priorSkills = prior?.installedSkills;
+  const priorMcps = prior?.installedMcps;
+  const hasPriorSnapshot = priorSkills !== undefined || priorMcps !== undefined;
+
+  // Pi user-error path: only MCPs requested for a target that can't install them.
+  // Warn either way, but only bail when there's no prior snapshot to reconcile. If
+  // Pi previously installed skills that are now gone (the repo still defines MCPs,
+  // as it usually does), the removal must still propagate — fall through to prune
+  // and record an empty snapshot even though this run installs nothing.
+  if (nothingToInstall && !supportsMcps && mcps.length > 0) {
+    log.warn("Pi does not support MCPs — nothing to install");
+    if (!hasPriorSnapshot) {
       return;
     }
-    // A global install with a non-empty config tree is still worth tracking: its
-    // config phase ran and sync must keep re-scanning the tree. Only a per-repo
-    // install, or a global install with nothing to write at all, is a true no-op.
-    if (!options.global || !configResult?.hadFiles) {
-      log.warn("Nothing to install");
-      return;
-    }
-  } else {
+  }
+
+  // A true no-op leaves state untouched: nothing to install, no prior snapshot to
+  // prune against, and (for a global install) no config tree worth tracking. A prior
+  // snapshot forces the run through — the user may have deleted their last skill, and
+  // that removal must still propagate (prune) and be recorded (empty snapshot).
+  if (nothingToInstall && !hasPriorSnapshot && (!options.global || !configResult?.hadFiles)) {
+    log.warn("Nothing to install");
+    return;
+  }
+
+  if (!nothingToInstall) {
     TARGETS[target](skills, mcps, options.global, cwd);
   }
 
+  // Prune orphans: names the snapshot recorded that this run did NOT install. Only
+  // recorded names are ever deleted (ownership contract) — hand-placed skill dirs and
+  // hand-added MCP servers are never in the snapshot, so they are never touched.
+  const home = homedir();
+  const thisRunSkillNames = skills.map((s) => s.name);
+  const thisRunMcpNames = installedMcps.map((m) => m.name);
+  const pruneSkillNames = (priorSkills ?? []).filter((n) => !thisRunSkillNames.includes(n));
+  const pruneMcpNames = (priorMcps ?? []).filter((n) => !thisRunMcpNames.includes(n));
+  pruneSkills(t, options.global, cwd, home, pruneSkillNames);
+  pruneMcps(t, options.global, cwd, home, pruneMcpNames);
+
   // Re-hash mcp-managed destination files the config phase wrote, now that the MCP
-  // merge has run, so the recorded hash covers the final merged content (behavior 10).
-  const configFiles = configResult ? finalizeMcpManagedHashes(target as TargetName, configResult) : undefined;
+  // merge AND the prune above have run, so the recorded hash covers the final
+  // content (behavior 10) and a pruned MCP entry does not read back as self-drift.
+  const configFiles = configResult ? finalizeMcpManagedHashes(t, configResult) : undefined;
 
   // Record the SELECTION, not the resolved snapshot: a full install (no --skills/
   // --mcps) records `undefined` so sync re-scans the repo each cycle and picks up
@@ -118,9 +150,13 @@ export function install(target: string, options: InstallOptions): void {
   saveInstallation({
     target,
     global: options.global,
-    path: options.global ? undefined : cwd,
+    path: installPath,
     skills: recordedSkills,
     mcps: recordedMcps,
+    // The pruning snapshot: the exact names installed this run, replaced wholesale
+    // so the next run's prune set is `this snapshot − that run's installed names`.
+    installedSkills: thisRunSkillNames,
+    installedMcps: thisRunMcpNames,
     // Mark every global install as config-bearing so config-only and full
     // installs look alike to sync (config sticks across saves in state).
     config: options.global || undefined,
