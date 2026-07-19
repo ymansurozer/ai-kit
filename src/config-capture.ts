@@ -6,6 +6,7 @@ import { parse as parseToml } from "smol-toml";
 
 import { loadMcpsFrom, loadServersFrom, MCPS_DIR, SERVERS_DIR } from "./config";
 import { defaultConfigDir, expandsPlaceholders, findPlaceholders, isIgnoredEntry } from "./config-tree";
+import { parseJsonContent } from "./json";
 import { log } from "./log";
 import { resolveMachineFrom } from "./machine";
 import { STATE_PATH } from "./state";
@@ -170,7 +171,7 @@ function stripManagedMcps(target: TargetName, rel: string, src: string, mcpNames
     return stripCodexMcpSections(raw, mcpNames);
   }
   if (target === "opencode") {
-    return stripOpencodeMcpEntries(raw, mcpNames);
+    return stripOpencodeMcpEntries(raw, mcpNames, src);
   }
   return undefined;
 }
@@ -218,7 +219,10 @@ function warnOverlayAttribution(target: TargetName, machine: string, overlayPath
   const label = `config/@${machine}/${target}/${rel}`;
   if (rel.endsWith(".json") || rel.endsWith(".toml")) {
     const content = readFileSync(overlayPath, "utf-8");
-    const parsed = (rel.endsWith(".json") ? JSON.parse(content) : parseToml(content)) as Record<string, unknown>;
+    const parsed = (rel.endsWith(".json") ? parseJsonContent(content, overlayPath) : parseToml(content)) as Record<
+      string,
+      unknown
+    >;
     const keys = Object.keys(parsed);
     log.warn(
       `${label} overlays ${keys.length > 0 ? keys.join(", ") : "(no keys)"} on ${machine}; ` +

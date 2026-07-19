@@ -48,7 +48,7 @@ function mcpDestFor(
   global: boolean,
   cwd: string,
   home: string,
-): { path: string; strip: (content: string, names: string[]) => string } | undefined {
+): { path: string; strip: (content: string, names: string[], sourcePath?: string) => string } | undefined {
   switch (target) {
     case "claude":
       return { path: global ? join(home, ".claude.json") : join(cwd, ".mcp.json"), strip: stripClaudeMcpEntries };
@@ -82,7 +82,7 @@ export function pruneMcps(target: TargetName, global: boolean, cwd: string, home
     return;
   }
   const content = readFileSync(dest.path, "utf-8");
-  const stripped = dest.strip(content, names);
+  const stripped = dest.strip(content, names, dest.path);
   if (stripped !== content) {
     writeFileSync(dest.path, stripped);
     log.info(`Removed MCP(s) ${names.join(", ")} from ${dest.path}`);

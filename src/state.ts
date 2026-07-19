@@ -1,6 +1,8 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync, writeFileSync, mkdirSync } from "fs";
 import { homedir } from "os";
 import { join, dirname } from "path";
+
+import { readJsonFile } from "./json";
 
 export const STATE_DIR = join(homedir(), ".ai-kit");
 export const STATE_PATH = join(STATE_DIR, "state.json");
@@ -47,7 +49,7 @@ export function readStateFrom(path: string): State {
   if (!existsSync(path)) {
     return { installations: [] };
   }
-  return JSON.parse(readFileSync(path, "utf-8"));
+  return readJsonFile(path, `inspect or delete ${path} and re-run ai-kit install`) as State;
 }
 
 export function writeStateTo(path: string, state: State): void {

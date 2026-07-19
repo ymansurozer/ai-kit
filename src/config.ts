@@ -1,6 +1,8 @@
 import { readdirSync, existsSync, readFileSync } from "fs";
 import { join, resolve } from "path";
 
+import { readJsonFile } from "./json";
+
 export const AI_KIT_ROOT = resolve(import.meta.dir, "..");
 export const SKILLS_DIR = join(AI_KIT_ROOT, "skills");
 export const MCPS_DIR = join(AI_KIT_ROOT, "mcps");
@@ -81,7 +83,7 @@ export function loadSkillsFrom(dir: string): Skill[] {
 
     const sourcePath = join(dir, d.name, "source.json");
     const source: SkillSource | undefined = existsSync(sourcePath)
-      ? JSON.parse(readFileSync(sourcePath, "utf-8"))
+      ? (readJsonFile(sourcePath) as SkillSource)
       : undefined;
 
     skills.push({
@@ -148,8 +150,8 @@ export function loadMcpsFrom(dir: string): McpConfig[] {
     .filter((f) => f.endsWith(".json"))
     .map((f) => {
       const mcpPath = join(dir, f);
-      const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
-      const config = content.config as Record<string, unknown> | undefined;
+      const content = readJsonFile(mcpPath) as { config?: Record<string, unknown>; description?: string };
+      const config = content.config;
       if (!config || (typeof config.command !== "string" && typeof config.url !== "string")) {
         throw new Error(`Invalid MCP config in ${f}: missing "config.command" or "config.url"`);
       }
@@ -178,7 +180,10 @@ export function loadServersFrom(dir: string): McpConfig[] {
     }
 
     const metaPath = join(dir, d.name, "server.json");
-    const meta = existsSync(metaPath) ? JSON.parse(readFileSync(metaPath, "utf-8")) : {};
+    const meta = (existsSync(metaPath) ? readJsonFile(metaPath) : {}) as {
+      env?: Record<string, string>;
+      description?: string;
+    };
 
     const config: McpConfig["config"] = {
       command: "bun",

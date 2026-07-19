@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, rmSync } from "fs";
+import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -29,6 +29,12 @@ describe("state", () => {
   test("readStateFrom returns empty state when file missing", () => {
     const state = readStateFrom(statePath);
     expect(state).toEqual({ installations: [] });
+  });
+
+  test("a corrupt state file fails naming the file and hinting recovery", () => {
+    writeFileSync(statePath, "{ this is not json");
+    expect(() => readStateFrom(statePath)).toThrow(statePath);
+    expect(() => readStateFrom(statePath)).toThrow(/inspect or delete .* and re-run ai-kit install/);
   });
 
   test("writeStateTo + readStateFrom round-trips correctly", () => {

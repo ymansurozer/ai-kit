@@ -99,23 +99,24 @@ export function install(target: string, options: InstallOptions): void {
   const priorMcps = prior?.installedMcps;
   const hasPriorSnapshot = priorSkills !== undefined || priorMcps !== undefined;
 
-  // Pi user-error path: only MCPs requested for a target that can't install them.
-  // Warn either way, but only bail when there's no prior snapshot to reconcile. If
-  // Pi previously installed skills that are now gone (the repo still defines MCPs,
-  // as it usually does), the removal must still propagate — fall through to prune
-  // and record an empty snapshot even though this run installs nothing.
-  if (nothingToInstall && !supportsMcps && mcps.length > 0) {
-    log.warn("Pi does not support MCPs — nothing to install");
-    if (!hasPriorSnapshot) {
-      return;
-    }
-  }
-
   // A true no-op leaves state untouched: nothing to install, no prior snapshot to
   // prune against, and (for a global install) no config tree worth tracking. A prior
   // snapshot forces the run through — the user may have deleted their last skill, and
-  // that removal must still propagate (prune) and be recorded (empty snapshot).
-  if (nothingToInstall && !hasPriorSnapshot && (!options.global || !configResult?.hadFiles)) {
+  // that removal must still propagate (prune) and be recorded (empty snapshot). A
+  // global install that just wrote config files must also fall through so their
+  // hashes get recorded, or that config reads back as unmanaged forever after.
+  const isNoOp = nothingToInstall && !hasPriorSnapshot && (!options.global || !configResult?.hadFiles);
+
+  // Pi user-error path: only MCPs requested for a target that can't install them.
+  // Warn either way, but only bail on a true no-op. A prior snapshot (drop the last
+  // skill) or config files written this run (global config tree) must still be
+  // reconciled and recorded — fall through to prune + save even with nothing to install.
+  if (nothingToInstall && !supportsMcps && mcps.length > 0) {
+    log.warn("Pi does not support MCPs — nothing to install");
+    if (isNoOp) {
+      return;
+    }
+  } else if (isNoOp) {
     log.warn("Nothing to install");
     return;
   }
