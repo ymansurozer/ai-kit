@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -131,6 +131,47 @@ describe("configInstall", () => {
     const state = readStateFrom(statePath);
     expect(state.installations).toHaveLength(1);
     expect(state.installations[0].target).toBe("claude");
+  });
+
+  test(".gitkeep placeholders in the tree are never installed", () => {
+    writeConfig("claude/.gitkeep", "");
+    writeConfig("codex/.gitkeep", "");
+    writeConfig("claude/settings.json", "{}");
+
+    configInstall(undefined, { home, configDir, statePath });
+
+    expect(existsSync(join(configRootFor("claude", home), "settings.json"))).toBe(true);
+    expect(existsSync(join(configRootFor("claude", home), ".gitkeep"))).toBe(false);
+    expect(existsSync(join(configRootFor("codex", home), ".gitkeep"))).toBe(false);
+  });
+
+  test("a binary file installs byte-for-byte, skips ${VAR} expansion, and re-installs without drift", () => {
+    // Invalid UTF-8 plus a ${VAR}-looking byte sequence that must NOT be expanded.
+    const bytes = Buffer.concat([Buffer.from([0x00, 0xff, 0x80]), Buffer.from("${HOME}"), Buffer.from([0xfe, 0x00])]);
+    const full = join(configDir, "claude/hooks/done.aac");
+    mkdirSync(join(full, ".."), { recursive: true });
+    writeFileSync(full, bytes);
+
+    configInstall("claude", { home, configDir, statePath, env: { HOME: "/somewhere" } });
+    const dest = join(configRootFor("claude", home), "hooks/done.aac");
+    expect(readFileSync(dest)).toEqual(bytes);
+
+    // Second run: recorded hash matches the raw bytes → overwritten freely, no drift skip.
+    configInstall("claude", { home, configDir, statePath, env: { HOME: "/somewhere" } });
+    expect(readFileSync(dest)).toEqual(bytes);
+    const state = readStateFrom(statePath);
+    expect(state.installations[0].configFiles!["hooks/done.aac"]).toBeDefined();
+  });
+
+  test("an executable hook installs executable on a fresh machine", () => {
+    const full = join(configDir, "claude/hooks/notify.sh");
+    mkdirSync(join(full, ".."), { recursive: true });
+    writeFileSync(full, "#!/bin/sh\n", { mode: 0o755 });
+
+    configInstall("claude", { home, configDir, statePath });
+
+    const dest = join(configRootFor("claude", home), "hooks/notify.sh");
+    expect(statSync(dest).mode & 0o777).toBe(0o755);
   });
 
   test("unknown target throws the unknown-target error listing valid targets", () => {

@@ -1,10 +1,10 @@
 import { createHash } from "crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import { dirname, join } from "path";
 
-import { AI_KIT_ROOT, loadMcps, type McpConfig } from "./config";
-import { CONFIG_DIR, expandEnvVars, loadConfigTreeFrom, type ConfigFile } from "./config-tree";
+import { loadMcps, type McpConfig } from "./config";
+import { defaultConfigDir, expandEnvVars, loadConfigTreeFrom, type ConfigFile } from "./config-tree";
 import { log } from "./log";
 import { resolveMachineFrom } from "./machine";
 import { findInstallationFrom, saveInstallationTo, STATE_PATH } from "./state";
@@ -33,7 +33,7 @@ export interface InstallConfigFilesOptions {
 
 const TARGET_NAMES = Object.keys(DESCRIPTORS) as TargetName[];
 
-function sha256(content: string): string {
+function sha256(content: string | Buffer): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
@@ -72,7 +72,9 @@ export function installConfigFiles(
         skippedDrift.push({ relPath: file.relPath, reason: "unmanaged" });
         continue;
       }
-      if (sha256(readFileSync(dest, "utf-8")) !== recorded) {
+      // Hash raw bytes so binary destinations compare correctly; for valid UTF-8
+      // text this digests the same bytes the string form did.
+      if (sha256(readFileSync(dest)) !== recorded) {
         skippedDrift.push({ relPath: file.relPath, reason: "drifted" });
         continue;
       }
@@ -80,6 +82,9 @@ export function installConfigFiles(
 
     mkdirSync(dirname(dest), { recursive: true });
     writeFileSync(dest, file.content);
+    if (file.mode !== undefined) {
+      chmodSync(dest, file.mode);
+    }
     installed.push(file.relPath);
     hashes[file.relPath] = sha256(file.content);
   }
@@ -174,6 +179,10 @@ function writeConfigForTarget(
   const expandedFiles: ConfigFile[] = [];
   const skippedMissingVar: { relPath: string; missing: string[] }[] = [];
   for (const file of files) {
+    if (typeof file.content !== "string") {
+      expandedFiles.push(file);
+      continue;
+    }
     const { content, missing } = expandEnvVars(file.content, opts.env);
     if (missing.length > 0) {
       skippedMissingVar.push({ relPath: file.relPath, missing });
@@ -236,7 +245,7 @@ export interface ConfigPhaseOptions {
  * from the global (`path: undefined`) entry, the key `install` writes.
  */
 export function configPhase(target: TargetName, options: ConfigPhaseOptions): ConfigTargetOutcome {
-  const configDir = options.configDir ?? join(AI_KIT_ROOT, CONFIG_DIR);
+  const configDir = options.configDir ?? defaultConfigDir();
   const statePath = options.statePath ?? STATE_PATH;
   const env = options.env ?? process.env;
   const machine = options.machine ?? resolveMachineFrom(statePath).name;
@@ -293,7 +302,7 @@ export function finalizeMcpManagedHashes(target: TargetName, outcome: ConfigTarg
 export function configInstall(target?: string, options: ConfigInstallOptions = {}): void {
   const targets = resolveTargets(target);
   const home = options.home ?? homedir();
-  const configDir = options.configDir ?? join(AI_KIT_ROOT, CONFIG_DIR);
+  const configDir = options.configDir ?? defaultConfigDir();
   const statePath = options.statePath ?? STATE_PATH;
   const force = options.force ?? false;
   const env = options.env ?? process.env;

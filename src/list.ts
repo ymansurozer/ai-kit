@@ -1,7 +1,5 @@
-import { join } from "path";
-
-import { AI_KIT_ROOT, loadSkills, loadMcps } from "./config";
-import { CONFIG_DIR, summarizeConfigTreeFrom, type ConfigTreeSummary } from "./config-tree";
+import { loadSkills, loadMcps } from "./config";
+import { defaultConfigDir, summarizeConfigTreeFrom, type ConfigTreeSummary } from "./config-tree";
 import { log } from "./log";
 import { resolveMachineFrom } from "./machine";
 import { STATE_PATH } from "./state";
@@ -72,7 +70,7 @@ export function list(options: ListOptions = {}): void {
     }
   }
 
-  const configDir = options.configDir ?? join(AI_KIT_ROOT, CONFIG_DIR);
+  const configDir = options.configDir ?? defaultConfigDir();
   const statePath = options.statePath ?? STATE_PATH;
   const machine = options.machine ?? resolveMachineFrom(statePath).name;
   renderConfigSection(summarizeConfigTreeFrom(configDir, machine));
