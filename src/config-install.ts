@@ -4,7 +4,13 @@ import { homedir } from "os";
 import { dirname, join } from "path";
 
 import { loadMcps, type McpConfig } from "./config";
-import { defaultConfigDir, expandEnvVars, loadConfigTreeFrom, type ConfigFile } from "./config-tree";
+import {
+  defaultConfigDir,
+  expandEnvVars,
+  expandsPlaceholders,
+  loadConfigTreeFrom,
+  type ConfigFile,
+} from "./config-tree";
 import { log } from "./log";
 import { resolveMachineFrom } from "./machine";
 import { findInstallationFrom, saveInstallationTo, STATE_PATH } from "./state";
@@ -179,7 +185,7 @@ function writeConfigForTarget(
   const expandedFiles: ConfigFile[] = [];
   const skippedMissingVar: { relPath: string; missing: string[] }[] = [];
   for (const file of files) {
-    if (typeof file.content !== "string") {
+    if (typeof file.content !== "string" || !expandsPlaceholders(file.relPath)) {
       expandedFiles.push(file);
       continue;
     }
