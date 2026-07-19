@@ -54,10 +54,12 @@ function emptyTree(): ConfigTree {
   return { claude: [], codex: [], pi: [], opencode: [] };
 }
 
-/** `.gitkeep` markers exist to keep empty tree directories in git — they are
- * never shippable config and are skipped by every collector. */
-export function isGitkeep(name: string): boolean {
-  return name === ".gitkeep";
+/** Names that are never shippable config and are skipped by every collector:
+ * `.gitkeep` markers (exist only to keep empty tree directories in git) and
+ * OS junk like Finder's `.DS_Store` (which lands in the working tree whenever
+ * the folder is browsed, and would otherwise be installed as config). */
+export function isIgnoredEntry(name: string): boolean {
+  return name === ".gitkeep" || name === ".DS_Store";
 }
 
 /** True when `buf` does not round-trip through UTF-8 — treated as binary. */
@@ -72,7 +74,7 @@ function collectFiles(dir: string, prefix: string, out: ConfigFile[]): void {
     const abs = join(dir, entry.name);
     if (entry.isDirectory()) {
       collectFiles(abs, relPath, out);
-    } else if (entry.isFile() && !isGitkeep(entry.name)) {
+    } else if (entry.isFile() && !isIgnoredEntry(entry.name)) {
       const buf = readFileSync(abs);
       const mode = statSync(abs).mode & 0o777;
       out.push({ relPath, content: isBinary(buf) ? buf : buf.toString("utf-8"), mode });
@@ -264,7 +266,7 @@ function collectRelPaths(dir: string, prefix: string, out: string[]): void {
     const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
       collectRelPaths(join(dir, entry.name), relPath, out);
-    } else if (entry.isFile() && !isGitkeep(entry.name)) {
+    } else if (entry.isFile() && !isIgnoredEntry(entry.name)) {
       out.push(relPath);
     }
   }

@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "path";
 import { parse as parseToml } from "smol-toml";
 
 import { loadMcpsFrom, loadServersFrom, MCPS_DIR, SERVERS_DIR } from "./config";
-import { defaultConfigDir, expandsPlaceholders, findPlaceholders, isGitkeep } from "./config-tree";
+import { defaultConfigDir, expandsPlaceholders, findPlaceholders, isIgnoredEntry } from "./config-tree";
 import { log } from "./log";
 import { resolveMachineFrom } from "./machine";
 import { STATE_PATH } from "./state";
@@ -49,7 +49,7 @@ function collectRelPaths(dir: string, prefix: string, out: string[]): void {
     const abs = join(dir, entry.name);
     if (entry.isDirectory()) {
       collectRelPaths(abs, relPath, out);
-    } else if (entry.isFile() && !isGitkeep(entry.name)) {
+    } else if (entry.isFile() && !isIgnoredEntry(entry.name)) {
       out.push(relPath);
     }
   }
