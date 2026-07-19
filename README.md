@@ -255,6 +255,8 @@ Drop a file into `config/<target>/` and its path inside that folder **is** its d
 
 So `config/claude/settings.json` installs to `~/.claude/settings.json`, and `config/claude/hooks/pre.sh` mirrors through to `~/.claude/hooks/pre.sh`. Subdirectories nest exactly as they land — no per-file mapping to maintain.
 
+Files install faithfully: permission bits carry over (an executable hook stays executable on a fresh machine), and binary files (notification sounds, images) are written byte-for-byte — they're excluded from `${VAR}` expansion and deep-merging, and a binary overlay replaces its base wholesale. `.gitkeep` markers are never installed; they exist only to keep empty tree directories in git.
+
 Config is **global-scope only** and rides the existing install:
 
 ```bash
