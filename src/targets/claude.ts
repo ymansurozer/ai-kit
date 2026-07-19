@@ -1,17 +1,17 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, readdirSync, rmSync } from "fs";
 import { homedir } from "os";
-import { join } from "path";
+import { join, dirname } from "path";
 
 import type { Skill, McpConfig } from "../config";
-import { parseFrontmatter } from "../config";
 import { log } from "../log";
 import { configRootFor } from "./descriptors";
 import { mergeTargetConfig } from "./merge";
-import { installSkillsToDir, copySkillAssets } from "./shared";
+import { installSkillsToDir } from "./shared";
 
 export function installClaude(skills: Skill[], mcps: McpConfig[], global: boolean, cwd: string): void {
   if (global) {
-    installSkillsGlobal(skills);
+    installSkillsToDir(skills, join(configRootFor("claude", homedir()), "skills"), "~/.claude/skills");
+    cleanupOldCommandLayout(skills);
     installMcpsGlobal(mcps);
   } else {
     installSkillsToDir(skills, join(cwd, ".agents", "skills"), ".agents/skills");
@@ -19,34 +19,40 @@ export function installClaude(skills: Skill[], mcps: McpConfig[], global: boolea
   }
 }
 
-export function convertSkillToCommand(content: string): string {
-  const normalized = content.replace(/\r\n/g, "\n");
-  const { data, body } = parseFrontmatter(normalized);
-  const entries = Object.entries(data).filter(([key]) => key !== "name");
-  if (entries.length === 0) {
-    return body;
-  }
-  const lines = normalized.split("\n");
-  const endIdx = lines.indexOf("---", 1);
-  const kept = lines.slice(1, endIdx).filter((l) => {
-    const key = l.slice(0, l.indexOf(":")).trim();
-    return key !== "name";
-  });
-  return `---\n${kept.join("\n")}\n---\n${body}`;
-}
-
-function installSkillsGlobal(skills: Skill[]): void {
+/**
+ * Remove leftovers from the pre-skills global layout, which wrote each skill to
+ * `~/.claude/commands/<name>.md` and flat-copied its sibling assets alongside.
+ * For each skill in this run we delete only its own `<name>.md` plus the entry
+ * names it contributes (top-level files and directories, everything except
+ * SKILL.md and source.json) — hand-written command files are never touched.
+ * Idempotent: `force: true` makes a second run a no-op.
+ */
+function cleanupOldCommandLayout(skills: Skill[]): void {
   const commandsDir = join(configRootFor("claude", homedir()), "commands");
-  mkdirSync(commandsDir, { recursive: true });
+  if (!existsSync(commandsDir)) {
+    return;
+  }
 
+  let removed = 0;
   for (const skill of skills) {
-    const content = readFileSync(skill.path, "utf-8");
-    const output = convertSkillToCommand(content);
+    const names = [`${skill.name}.md`];
+    for (const entry of readdirSync(dirname(skill.path))) {
+      if (entry === "SKILL.md" || entry === "source.json") {
+        continue;
+      }
+      names.push(entry);
+    }
+    for (const name of names) {
+      const target = join(commandsDir, name);
+      if (existsSync(target)) {
+        rmSync(target, { recursive: true, force: true });
+        removed++;
+      }
+    }
+  }
 
-    const dest = join(commandsDir, `${skill.name}.md`);
-    writeFileSync(dest, output);
-    copySkillAssets(skill.path, commandsDir);
-    log.success(`Installed skill ${skill.name} → ~/.claude/commands/${skill.name}.md`);
+  if (removed > 0) {
+    log.info(`Removed ${removed} legacy skill ${removed === 1 ? "entry" : "entries"} from ~/.claude/commands/`);
   }
 }
 

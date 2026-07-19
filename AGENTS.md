@@ -28,7 +28,7 @@ bun link              # link ai-kit as global CLI command
 **Install targets (`src/targets/`):**
 
 - Each target exports `install<Target>(skills, mcps, global, cwd)`
-- `claude.ts` — per-repo: `.agents/skills/` + `.mcp.json`; global: `~/.claude/commands/` (frontmatter name stripped) + `~/.claude.json`
+- `claude.ts` — per-repo: `.agents/skills/` + `.mcp.json`; global: `~/.claude/skills/<name>/` (native personal Agent Skills) + `~/.claude.json`. A global install also prunes leftovers from the old `~/.claude/commands/` layout for the skills in the run
 - `codex.ts` — per-repo: `.agents/skills/` + `.codex/config.toml`; global: `~/.agents/skills/` + `~/.codex/config.toml`
 - `opencode.ts` — per-repo: `.opencode/skills/` + `opencode.json`; global: `~/.config/opencode/skills/` + `~/.config/opencode/opencode.json`
 - `pi.ts` — `.agents/skills/` for both per-repo and global installs, skills only, no MCP support
@@ -60,7 +60,7 @@ bun link              # link ai-kit as global CLI command
 
 Bun native test runner. Two patterns:
 
-1. **Pure function tests** — `parseFrontmatter`, `parseFlags`, `tomlString`, `buildTomlSection`, `removeTomlSection`, `convertSkillToCommand`
+1. **Pure function tests** — `parseFrontmatter`, `parseFlags`, `tomlString`, `buildTomlSection`, `removeTomlSection`
 2. **Temp directory tests** — `mkdtempSync` in `beforeEach`, `rmSync` in `afterEach`. Loading functions and target installers use their `*From(dir)` / `cwd` parameter variants.
 
 ## Adding a new install target

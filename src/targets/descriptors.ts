@@ -42,7 +42,7 @@ export const DESCRIPTORS: Record<TargetName, TargetDescriptor> = {
     ],
     mcpManagedFiles: [],
     supportsMcps: true,
-    bannedConfigPaths: ["commands"],
+    bannedConfigPaths: ["skills"],
   },
   codex: {
     name: "codex",
