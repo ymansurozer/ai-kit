@@ -136,6 +136,19 @@ describe("configCapture", () => {
     expect(baseRead("claude", "hooks/nested/post.sh")).toBe("echo post");
   });
 
+  test("a curated directory's __pycache__ contents and .DS_Store are never captured", () => {
+    writeMachine("claude", "hooks/pre.sh", "echo pre");
+    writeMachine("claude", "hooks/__pycache__/pre.cpython-311.pyc", "junk");
+    writeMachine("claude", "hooks/.DS_Store", "junk");
+
+    configCapture("claude", { home, configDir });
+
+    expect(baseRead("claude", "hooks/pre.sh")).toBe("echo pre");
+    expect(baseExists("claude", "hooks/__pycache__/pre.cpython-311.pyc")).toBe(false);
+    expect(existsSync(join(configDir, "claude", "hooks", "__pycache__"))).toBe(false);
+    expect(baseExists("claude", "hooks/.DS_Store")).toBe(false);
+  });
+
   test("implicit capture never grabs a banned path (claude skills/)", () => {
     writeMachine("claude", "settings.json", "{}");
     writeMachine("claude", "skills/foo/SKILL.md", "ai-kit output");

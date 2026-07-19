@@ -91,6 +91,16 @@ describe("loadConfigTreeFrom", () => {
     expect(tree.claude.map((f) => f.relPath)).toEqual(["settings.json"]);
   });
 
+  test("__pycache__ directories and .pyc files are never collected, at any depth", () => {
+    writeFixture("claude/__pycache__/mod.cpython-311.pyc", "junk");
+    writeFixture("claude/hooks/__pycache__/mod.cpython-311.pyc", "junk");
+    writeFixture("claude/stray.pyc", "junk");
+    writeFixture("claude/settings.json", "{}");
+
+    const tree = loadConfigTreeFrom(tmpDir);
+    expect(tree.claude.map((f) => f.relPath)).toEqual(["settings.json"]);
+  });
+
   test("an executable file's permission bits ride along as mode", () => {
     const full = join(tmpDir, "claude/hooks/notify.sh");
     mkdirSync(join(full, ".."), { recursive: true });
