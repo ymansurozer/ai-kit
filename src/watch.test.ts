@@ -1,12 +1,13 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { spawnSync } from "child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
 import {
   decide,
   initialMemo,
+  subprocessInstall,
   realGit,
   recordInstallFailure,
   recordInstallSuccess,
@@ -283,5 +284,38 @@ describe("integration: real clones", () => {
     runTick(ctx, initialMemo(), 0);
     expect(installs).toBe(1);
     expect(realGit(cloneB).tracking()).toBe("up-to-date");
+  });
+});
+
+describe("subprocessInstall", () => {
+  let repo: string;
+
+  beforeEach(() => {
+    repo = mkdtempSync(join(tmpdir(), "ai-kit-watch-sub-"));
+    mkdirSync(join(repo, "src"), { recursive: true });
+    writeFileSync(join(repo, "package.json"), JSON.stringify({ name: "fake-kit", version: "0.0.0" }));
+  });
+
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  test("runs bun install and the repo's own cli sync in fresh subprocesses", () => {
+    // The fake CLI proves the on-disk code (not the watcher's in-memory code) runs.
+    writeFileSync(
+      join(repo, "src", "cli.ts"),
+      'import { writeFileSync } from "fs";\n' +
+        'writeFileSync(new URL("../marker.txt", import.meta.url).pathname, process.argv[2] ?? "");\n',
+    );
+
+    subprocessInstall(repo);
+
+    const marker = spawnSync("cat", [join(repo, "marker.txt")], { encoding: "utf8" }).stdout;
+    expect(marker).toBe("sync");
+  });
+
+  test("a failing sync subprocess throws into the failure/backoff path", () => {
+    writeFileSync(join(repo, "src", "cli.ts"), "process.exit(3);\n");
+    expect(() => subprocessInstall(repo)).toThrow(/ai-kit sync failed \(exit 3\)/);
   });
 });
