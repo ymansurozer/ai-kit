@@ -1,8 +1,8 @@
 import { spawnSync } from "child_process";
+import { join } from "path";
 
 import { log } from "./log";
 import { readState } from "./state";
-import { sync } from "./sync";
 
 export const DEFAULT_INTERVAL_MS = 45_000;
 
@@ -265,6 +265,28 @@ function emit(report?: Report): void {
   log[report.level](report.message);
 }
 
+/**
+ * Default install step: `bun install` then `ai-kit sync`, each in a fresh
+ * subprocess. The watch is a long-running process executing the code it loaded
+ * at start — an in-process `sync()` after a pull would run the OLD code, and a
+ * pull that added a dependency would crash-loop on the missing package until
+ * someone ran `bun install` and restarted the service by hand. Fresh
+ * subprocesses pick up both the new code and the new dependencies immediately.
+ * A non-zero exit throws, landing in the normal failure/backoff path.
+ */
+export function subprocessInstall(cwd: string): void {
+  const steps: [string, string[]][] = [
+    ["bun install", [process.execPath, "install"]],
+    ["ai-kit sync", [process.execPath, join(cwd, "src", "cli.ts"), "sync"]],
+  ];
+  for (const [label, [bin, ...args]] of steps) {
+    const result = spawnSync(bin, args, { cwd, stdio: "inherit" });
+    if (result.status !== 0) {
+      throw new Error(`${label} failed (exit ${result.status ?? "signal"})`);
+    }
+  }
+}
+
 export interface WatchOptions {
   cwd?: string;
   intervalMs?: number;
@@ -284,7 +306,7 @@ export function watch(options: WatchOptions = {}): void {
   const intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
   const ctx: TickContext = {
     git: options.git ?? realGit(cwd),
-    install: options.install ?? (() => sync()),
+    install: options.install ?? (() => subprocessInstall(cwd)),
   };
 
   log.heading(`Watching ${cwd} for changes (every ${Math.round(intervalMs / 1000)}s)`);
