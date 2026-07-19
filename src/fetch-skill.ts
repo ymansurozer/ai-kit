@@ -1,5 +1,5 @@
 import { spawnSync } from "child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
 
@@ -55,6 +55,11 @@ export function fetchSkill(localName: string, from: string, upstreamSkill?: stri
     // the existing skill dir now so files upstream deleted/renamed don't linger.
     replaceSkillDir(dirname(skillMd), destDir);
 
+    // Rewrite the frontmatter `name:` to the local name so the folder name and the
+    // name loadSkillsFrom reads can never diverge (loadSkillsFrom prefers frontmatter).
+    const destSkillMd = join(destDir, "SKILL.md");
+    writeFileSync(destSkillMd, rewriteFrontmatterName(readFileSync(destSkillMd, "utf-8"), names.localName));
+
     writeFileSync(
       join(destDir, "source.json"),
       JSON.stringify({ from, skill: names.upstreamSkill, fetchedAt: new Date().toISOString() }, null, 2) + "\n",
@@ -64,6 +69,34 @@ export function fetchSkill(localName: string, from: string, upstreamSkill?: stri
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
   }
+}
+
+/**
+ * Rewrite the `name:` field in a SKILL.md's leading frontmatter block to `name`.
+ * Operates only on the leading `---\n...\n---` block (the format `parseFrontmatter`
+ * assumes); the body — including any `name:` occurrence after the closing `---` —
+ * is left byte-for-byte untouched. If the block has no `name:` line, one is inserted
+ * first; if there's no frontmatter block at all, the content is returned unchanged
+ * (loadSkillsFrom then falls back to the folder name, which is already the local name).
+ */
+export function rewriteFrontmatterName(content: string, name: string): string {
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) {
+    return content;
+  }
+
+  const lines = match[1].split("\n");
+  const nameIdx = lines.findIndex((line) => {
+    const idx = line.indexOf(":");
+    return idx !== -1 && line.slice(0, idx).trim() === "name";
+  });
+  if (nameIdx === -1) {
+    lines.unshift(`name: ${name}`);
+  } else {
+    lines[nameIdx] = `name: ${name}`;
+  }
+
+  return `---\n${lines.join("\n")}\n---` + content.slice(match[0].length);
 }
 
 /**

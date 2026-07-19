@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 
 import { parseArgs, unknownFlags } from "./cli";
+import { MCPS_DIR, SERVERS_DIR } from "./config";
 
 describe("parseArgs", () => {
   test("parses boolean flag", () => {
@@ -143,5 +144,27 @@ describe("cli router", () => {
     const res = run("install");
     expect(res.status).toBe(1);
     expect(res.stderr).toContain("Missing target");
+  });
+
+  test("skill add accepts --skill (no unknown-flag warning)", () => {
+    // No --from, so addSkill throws "--skill requires --from" before writing anything.
+    const res = run("skill", "add", "aikit-test-skill", "--skill", "upstream-name");
+    expect(res.stdout + res.stderr).not.toContain("Unknown flag --skill");
+    expect(res.stderr).toContain("--skill requires --from");
+  });
+
+  test("mcp add and server add warn on --skill", () => {
+    // add() writes into the repo's mcps/ and servers/ dirs (not injectable), so
+    // clean up the scaffolded files afterward.
+    try {
+      const mcp = run("mcp", "add", "aikit-test-mcp", "--skill", "upstream-name");
+      expect(mcp.stdout + mcp.stderr).toContain("Unknown flag --skill");
+
+      const server = run("server", "add", "aikit-test-server", "--skill", "upstream-name");
+      expect(server.stdout + server.stderr).toContain("Unknown flag --skill");
+    } finally {
+      rmSync(join(MCPS_DIR, "aikit-test-mcp.json"), { force: true });
+      rmSync(join(SERVERS_DIR, "aikit-test-server"), { recursive: true, force: true });
+    }
   });
 });

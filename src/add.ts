@@ -7,6 +7,7 @@ import { log } from "./log";
 
 export interface AddOptions {
   from?: string;
+  skill?: string;
 }
 
 export function add(type: string, name: string, options: AddOptions = {}): void {
@@ -29,8 +30,12 @@ function addSkill(name: string, options: AddOptions): void {
     throw new Error(`Skill already exists: ${name}`);
   }
 
+  if (options.skill && !options.from) {
+    throw new Error("--skill requires --from");
+  }
+
   if (options.from) {
-    const ok = fetchSkill(name, options.from);
+    const ok = fetchSkill(name, options.from, options.skill);
     if (!ok) {
       throw new Error(`Failed to fetch skill "${name}" from ${options.from}`);
     }

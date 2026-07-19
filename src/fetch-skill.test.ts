@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { replaceSkillDir, resolveFetchNames } from "./fetch-skill";
+import { replaceSkillDir, resolveFetchNames, rewriteFrontmatterName } from "./fetch-skill";
 
 describe("resolveFetchNames", () => {
   test("defaults upstreamSkill to localName when not given", () => {
@@ -15,6 +15,34 @@ describe("resolveFetchNames", () => {
       localName: "my-skill",
       upstreamSkill: "upstream-skill",
     });
+  });
+});
+
+describe("rewriteFrontmatterName", () => {
+  test("replaces an existing name line with the local name", () => {
+    const content = "---\nname: upstream-name\ndescription: does a thing\n---\n\n# Body\n";
+    expect(rewriteFrontmatterName(content, "local-name")).toBe(
+      "---\nname: local-name\ndescription: does a thing\n---\n\n# Body\n",
+    );
+  });
+
+  test("inserts a name line first when the block has none", () => {
+    const content = "---\ndescription: does a thing\n---\n\n# Body\n";
+    expect(rewriteFrontmatterName(content, "local-name")).toBe(
+      "---\nname: local-name\ndescription: does a thing\n---\n\n# Body\n",
+    );
+  });
+
+  test("returns content unchanged when there is no frontmatter block", () => {
+    const content = "# Body\n\nname: not-frontmatter\n";
+    expect(rewriteFrontmatterName(content, "local-name")).toBe(content);
+  });
+
+  test("never touches a name occurrence in the body", () => {
+    const content = "---\nname: upstream-name\n---\n\nSome text mentioning name: keep-me here.\n";
+    expect(rewriteFrontmatterName(content, "local-name")).toBe(
+      "---\nname: local-name\n---\n\nSome text mentioning name: keep-me here.\n",
+    );
   });
 });
 

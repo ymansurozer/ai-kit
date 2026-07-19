@@ -14,7 +14,7 @@ import { watch } from "./watch";
 
 const args = process.argv.slice(2);
 const command = args[0];
-const VALUE_FLAGS = new Set(["skills", "mcps", "from", "interval", "file"]);
+const VALUE_FLAGS = new Set(["skills", "mcps", "from", "skill", "interval", "file"]);
 
 export interface ParsedArgs {
   flags: Record<string, string | boolean>;
@@ -82,7 +82,7 @@ function showHelp(): void {
     ai-kit watch install [--interval <s>]     Run watch as a background service (systemd/launchd)
     ai-kit watch uninstall                    Remove the background watch service
     ai-kit watch status                       Show whether the watch service is running
-    ai-kit skill add <name> [--from <source>] Scaffold a new skill, or fetch one from skills.sh / GitHub
+    ai-kit skill add <name> [--from <source>] [--skill <upstream-name>]  Scaffold a new skill, or fetch one from skills.sh / GitHub
     ai-kit skill update [name]                Update third-party skills from origin
     ai-kit skill detach <name>                Detach a skill from its upstream source
     ai-kit mcp add <name>                     Scaffold a new MCP config
@@ -97,6 +97,7 @@ function showHelp(): void {
     --skills <names>            Cherry-pick skills (comma-separated)
     --mcps <names>              Cherry-pick MCPs (comma-separated)
     --from <source>             External skill source (GitHub shorthand), e.g. anthropics/skills
+    --skill <upstream-name>     Upstream skill name when it differs from the local name (skill add)
     --interval <seconds>        Poll interval for watch, in seconds (default 45)
     --file <relative-path>      Capture one path relative to the config root (config capture; requires a target)
 
@@ -108,6 +109,7 @@ function showHelp(): void {
     ai-kit install codex --skills review,humanizer --mcps playwright
     ai-kit install pi
     ai-kit skill add frontend-design --from anthropics/skills
+    ai-kit skill add taste-redesign --from Leonxlnx/taste-skill --skill redesign-existing-projects
     ai-kit skill update
     ai-kit config capture
     ai-kit config install --force
@@ -226,10 +228,11 @@ if (import.meta.main) {
             log.error(`Usage: ai-kit ${resource} add <name>`);
             process.exit(1);
           }
-          warnUnknownFlags(flags, ["from"]);
+          warnUnknownFlags(flags, resource === "skill" ? ["from", "skill"] : ["from"]);
           rejectStrayPositionals(rest);
           add(resource, name, {
             from: typeof flags.from === "string" ? flags.from : undefined,
+            skill: typeof flags.skill === "string" ? flags.skill : undefined,
           });
         } else if (resource === "skill" && verb === "update") {
           warnUnknownFlags(flags, []);
