@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { homedir } from "os";
 import { join, dirname } from "path";
@@ -234,8 +235,11 @@ function buildHttpTomlSection(name: string, config: HttpMcpTransportConfig): str
 function extractTomlSections(
   content: string,
   sectionPrefix: string,
-): { content: string; sections: ParsedTomlSection[]; found: boolean } {
-  const marker = "__AI_KIT_TOML_SECTION__";
+): { content: string; sections: ParsedTomlSection[]; found: boolean; marker: string } {
+  // Unique per call so a section marker never collides with a matching literal
+  // line a user happens to have in their own config content — a fixed marker
+  // would let such content corrupt the merge when the marker gets replaced back.
+  const marker = `__AI_KIT_TOML_SECTION_${randomUUID()}__`;
   const lines = content.split("\n");
   const parsedSections = parseTomlSections(content);
   const sections = parsedSections.filter(
@@ -246,6 +250,7 @@ function extractTomlSections(
       content,
       sections: [],
       found: false,
+      marker,
     };
   }
 
@@ -275,6 +280,7 @@ function extractTomlSections(
     content: result.join("\n"),
     sections,
     found: true,
+    marker,
   };
 }
 
@@ -308,7 +314,7 @@ function mergeTomlSection(existing: string, emitted: string, sectionPrefix: stri
   const mergedSection = renderTomlSections(mergeTomlSections(extracted.sections, emittedSections));
 
   if (extracted.found) {
-    return extracted.content.replace("__AI_KIT_TOML_SECTION__", mergedSection);
+    return extracted.content.replace(extracted.marker, mergedSection);
   }
 
   const base = extracted.content.trimEnd();

@@ -373,6 +373,38 @@ multi_agent = true
     expect(toml).not.toContain("Bearer ${ANALYTICS_API_TOKEN}");
   });
 
+  test("survives user content containing the literal old marker text, ahead of the replaced section", () => {
+    // Reproduces the collision the old fixed marker was vulnerable to: content
+    // containing the literal old marker string *before* the mcp_servers section
+    // being replaced. With a fixed marker, the final string-replace would match
+    // this line (the first occurrence) instead of the one actually inserted at
+    // the section's position, corrupting this line and leaving the real marker
+    // untouched in the output.
+    const configDir = join(tmpDir, ".codex");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.toml"),
+      `[notes]
+warning = "__AI_KIT_TOML_SECTION__"
+
+[mcp_servers.playwright]
+command = "old"
+
+[features]
+multi_agent = true
+`,
+    );
+
+    installCodex([], [makeMcp("playwright")], false, tmpDir);
+    const toml = readFileSync(join(configDir, "config.toml"), "utf-8");
+    expect(toml).toContain('warning = "__AI_KIT_TOML_SECTION__"');
+    expect(toml).toContain("[features]");
+    expect(toml).toContain("multi_agent = true");
+    expect(toml).toContain('command = "npx"');
+    expect(toml).not.toContain('command = "old"');
+    expect(toml.match(/\[mcp_servers\.playwright\]/g)).toHaveLength(1);
+  });
+
   test("preserves unrelated keys inside an existing MCP section", () => {
     const configDir = join(tmpDir, ".codex");
     mkdirSync(configDir, { recursive: true });

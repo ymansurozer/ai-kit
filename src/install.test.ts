@@ -302,6 +302,24 @@ describe("install", () => {
     expect(toml).toContain('persistence = "save-all"');
   });
 
+  test("`install all` warns about a not-found skill exactly once, not once per target", () => {
+    const result = run(installScript("all", { global: true, skills: ["nonexistent"], mcps: [] }));
+    expect(result.status).toBe(0);
+
+    const output = `${result.stdout}${result.stderr}`;
+    const matches = output.match(/Skill not found: nonexistent/g) ?? [];
+    expect(matches).toHaveLength(1);
+  });
+
+  test("a single-target install still warns about a not-found skill once", () => {
+    const result = run(installScript("claude", { global: true, skills: ["nonexistent"], mcps: [] }));
+    expect(result.status).toBe(0);
+
+    const output = `${result.stdout}${result.stderr}`;
+    const matches = output.match(/Skill not found: nonexistent/g) ?? [];
+    expect(matches).toHaveLength(1);
+  });
+
   test("a legacy state entry (no snapshot) prunes nothing on the first run, then prunes on the second", () => {
     const skillB = `legacy-skill-${uniq()}`;
     const skillBDir = makeSkill(skillB);

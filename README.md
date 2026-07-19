@@ -411,6 +411,8 @@ Some states are reported and skipped, never resolved automatically:
 - **Install failure** — reported, then backed off rather than retried hot; the next successful sync clears the state.
 - **Config drift** — a config destination modified since AI Kit last wrote it (or never managed by AI Kit) is skipped and reported, never overwritten. Drift is not an install failure and doesn't trigger backoff; the fix is `ai-kit config capture` + commit, or `ai-kit config install --force`. Claude Code writing permission grants into `settings.json` makes this routine on active machines — reported, not resolved.
 
+`watch` takes no lock on the shared files it writes — claude's global `~/.claude.json` and AI Kit's own `~/.ai-kit/state.json`. If a sync tick and a live harness session (or another `ai-kit` command) both rewrite one of those files at the same moment, last writer wins within that milliseconds-wide window. This was a deliberate call: the collision is rare and self-healing (the next tick or install re-converges the file), and a locking scheme wasn't judged worth the added complexity.
+
 ### Run it as a background service
 
 Because it runs indefinitely, `watch` is best managed as a service that starts on boot. From your AI Kit checkout:
