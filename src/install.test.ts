@@ -367,15 +367,20 @@ describe("install", () => {
   test("pi prunes a dropped skill even when only MCPs remain in the repo (still warns)", () => {
     const piSkills = join(homeDir, ".agents", "skills");
 
-    // First run installs the beforeEach skill and records a snapshot for pi.
-    expect(run(installScript("pi", { global: true })).status).toBe(0);
+    // Cherry-pick the test skill/MCP so the scenario doesn't depend on what else
+    // the surrounding repo ships in skills/ (a fork carrying real skills would
+    // otherwise install those and break the "nothing installable" premise).
+    const selection = { skills: [skillName], mcps: [mcpName] };
+
+    // First run installs the cherry-picked skill and records a snapshot for pi.
+    expect(run(installScript("pi", { global: true, ...selection })).status).toBe(0);
     expect(existsSync(join(piSkills, skillName))).toBe(true);
 
-    // Delete every skill from the repo; the MCP stays, so this run has nothing pi
+    // Delete the skill from the repo; the MCP stays, so this run has nothing pi
     // can install and reaches the "Pi does not support MCPs" path — which must NOT
     // short-circuit the prune now that a snapshot exists.
     rmSync(skillDir, { recursive: true, force: true });
-    const second = run(installScript("pi", { global: true }));
+    const second = run(installScript("pi", { global: true, ...selection }));
     expect(second.status).toBe(0);
     expect(`${second.stdout}${second.stderr}`).toContain("Pi does not support MCPs");
 
