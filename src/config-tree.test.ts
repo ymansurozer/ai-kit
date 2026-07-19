@@ -73,6 +73,27 @@ describe("loadConfigTreeFrom", () => {
     writeFixture("claude/commands/foo.md", "banned");
     expect(() => loadConfigTreeFrom(tmpDir)).toThrow(/commands/);
   });
+
+  test(".gitkeep markers are never collected, at any depth", () => {
+    writeFixture("claude/.gitkeep", "");
+    writeFixture("claude/hooks/.gitkeep", "");
+    writeFixture("claude/settings.json", "{}");
+
+    const tree = loadConfigTreeFrom(tmpDir);
+    expect(tree.claude.map((f) => f.relPath)).toEqual(["settings.json"]);
+  });
+
+  test("a binary file (invalid UTF-8) is collected as a Buffer, byte-for-byte", () => {
+    const bytes = Buffer.from([0x00, 0xff, 0xfe, 0x41, 0x80, 0x00]);
+    const full = join(tmpDir, "claude/hooks/done.aac");
+    mkdirSync(join(full, ".."), { recursive: true });
+    writeFileSync(full, bytes);
+
+    const tree = loadConfigTreeFrom(tmpDir);
+    const file = tree.claude.find((f) => f.relPath === "hooks/done.aac")!;
+    expect(Buffer.isBuffer(file.content)).toBe(true);
+    expect(file.content).toEqual(bytes);
+  });
 });
 
 describe("loadConfigTreeFrom overlays", () => {
@@ -101,7 +122,7 @@ describe("loadConfigTreeFrom overlays", () => {
     writeFixture("@laptop/claude/settings.json", JSON.stringify({ model: "sonnet", env: { B: "9" } }));
 
     const file = claudeFile("laptop", "settings.json");
-    expect(JSON.parse(file.content)).toEqual({ model: "sonnet", env: { A: "1", B: "9" } });
+    expect(JSON.parse(file.content as string)).toEqual({ model: "sonnet", env: { A: "1", B: "9" } });
     expect(file.overlayKeys).toEqual(["model", "env"]);
     expect(file.overlayReplaced).toBeUndefined();
   });
@@ -111,7 +132,7 @@ describe("loadConfigTreeFrom overlays", () => {
     writeFixture("@laptop/claude/settings.json", JSON.stringify({ tools: ["x"] }));
 
     const file = claudeFile("laptop", "settings.json");
-    expect(JSON.parse(file.content)).toEqual({ tools: ["x"], keep: true });
+    expect(JSON.parse(file.content as string)).toEqual({ tools: ["x"], keep: true });
   });
 
   test("deep-merges a TOML overlay the same way, re-stringifying", () => {
@@ -119,7 +140,7 @@ describe("loadConfigTreeFrom overlays", () => {
     writeFixture("@laptop/codex/config.toml", 'model = "sonnet"\n\n[env]\nB = "9"\n');
 
     const file = loadConfigTreeFrom(tmpDir, "laptop").codex.find((f) => f.relPath === "config.toml")!;
-    expect(parseToml(file.content)).toEqual({ model: "sonnet", env: { A: "1", B: "9" } });
+    expect(parseToml(file.content as string)).toEqual({ model: "sonnet", env: { A: "1", B: "9" } });
     expect(file.overlayKeys).toEqual(["model", "env"]);
   });
 
@@ -154,7 +175,7 @@ describe("loadConfigTreeFrom overlays", () => {
     writeFixture("@desktop/claude/settings.json", JSON.stringify({ model: "sonnet" }));
 
     const file = claudeFile("laptop", "settings.json");
-    expect(JSON.parse(file.content)).toEqual({ model: "opus" });
+    expect(JSON.parse(file.content as string)).toEqual({ model: "opus" });
     expect(file.overlayKeys).toBeUndefined();
     expect(file.overlayReplaced).toBeUndefined();
   });
@@ -164,7 +185,7 @@ describe("loadConfigTreeFrom overlays", () => {
     writeFixture("@laptop/claude/settings.json", JSON.stringify({ model: "sonnet" }));
 
     const file = claudeFile(undefined, "settings.json");
-    expect(JSON.parse(file.content)).toEqual({ model: "opus" });
+    expect(JSON.parse(file.content as string)).toEqual({ model: "opus" });
   });
 
   test("a base file untouched by any overlay carries no overlay metadata", () => {

@@ -15,7 +15,9 @@ const CONFIG_ROOT = resolve(import.meta.dir, "..", CONFIG_DIR);
 export interface ConfigFile {
   /** Destination path relative to the target's config root. */
   relPath: string;
-  content: string;
+  /** File content: text as a string, binary files as raw bytes. Binary content
+   * never merges, never expands `${VAR}`, and is written/hashed byte-for-byte. */
+  content: string | Buffer;
   /**
    * For a file deep-merged with a machine overlay (JSON/TOML): the top-level
    * keys the overlay contributed to the merged result. Consumed by capture's
@@ -39,6 +41,17 @@ function emptyTree(): ConfigTree {
   return { claude: [], codex: [], pi: [], opencode: [] };
 }
 
+/** `.gitkeep` markers exist to keep empty tree directories in git — they are
+ * never shippable config and are skipped by every collector. */
+export function isGitkeep(name: string): boolean {
+  return name === ".gitkeep";
+}
+
+/** True when `buf` does not round-trip through UTF-8 — treated as binary. */
+function isBinary(buf: Buffer): boolean {
+  return !Buffer.from(buf.toString("utf-8"), "utf-8").equals(buf);
+}
+
 /** Recursively collect files under `dir`, keyed by path relative to `dir`. */
 function collectFiles(dir: string, prefix: string, out: ConfigFile[]): void {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -46,8 +59,9 @@ function collectFiles(dir: string, prefix: string, out: ConfigFile[]): void {
     const abs = join(dir, entry.name);
     if (entry.isDirectory()) {
       collectFiles(abs, relPath, out);
-    } else if (entry.isFile()) {
-      out.push({ relPath, content: readFileSync(abs, "utf-8") });
+    } else if (entry.isFile() && !isGitkeep(entry.name)) {
+      const buf = readFileSync(abs);
+      out.push({ relPath, content: isBinary(buf) ? buf : buf.toString("utf-8") });
     }
   }
 }
@@ -114,17 +128,22 @@ function combineFile(target: TargetName, base: ConfigFile, overlay: ConfigFile):
   const rel = base.relPath;
   const baseLabel = `config/${target}/${rel}`;
   const overlayLabel = `config/@overlay/${target}/${rel}`;
+  const baseContent = base.content;
+  const overlayContent = overlay.content;
 
-  if (rel.endsWith(".json")) {
-    const overlayObj = parseJsonConfig(overlay.content, overlayLabel);
-    const merged = deepMerge(overlayObj, parseJsonConfig(base.content, baseLabel));
-    return { relPath: rel, content: JSON.stringify(merged, null, 2) + "\n", overlayKeys: Object.keys(overlayObj) };
-  }
+  // Binary content can't deep-merge; only string pairs reach the JSON/TOML paths.
+  if (typeof baseContent === "string" && typeof overlayContent === "string") {
+    if (rel.endsWith(".json")) {
+      const overlayObj = parseJsonConfig(overlayContent, overlayLabel);
+      const merged = deepMerge(overlayObj, parseJsonConfig(baseContent, baseLabel));
+      return { relPath: rel, content: JSON.stringify(merged, null, 2) + "\n", overlayKeys: Object.keys(overlayObj) };
+    }
 
-  if (rel.endsWith(".toml")) {
-    const overlayObj = parseTomlConfig(overlay.content, overlayLabel);
-    const merged = deepMerge(overlayObj, parseTomlConfig(base.content, baseLabel));
-    return { relPath: rel, content: stringifyToml(merged), overlayKeys: Object.keys(overlayObj) };
+    if (rel.endsWith(".toml")) {
+      const overlayObj = parseTomlConfig(overlayContent, overlayLabel);
+      const merged = deepMerge(overlayObj, parseTomlConfig(baseContent, baseLabel));
+      return { relPath: rel, content: stringifyToml(merged), overlayKeys: Object.keys(overlayObj) };
+    }
   }
 
   return { relPath: rel, content: overlay.content, overlayReplaced: true };
@@ -226,7 +245,7 @@ function collectRelPaths(dir: string, prefix: string, out: string[]): void {
     const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
       collectRelPaths(join(dir, entry.name), relPath, out);
-    } else if (entry.isFile()) {
+    } else if (entry.isFile() && !isGitkeep(entry.name)) {
       out.push(relPath);
     }
   }

@@ -33,7 +33,7 @@ export interface InstallConfigFilesOptions {
 
 const TARGET_NAMES = Object.keys(DESCRIPTORS) as TargetName[];
 
-function sha256(content: string): string {
+function sha256(content: string | Buffer): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
@@ -72,7 +72,9 @@ export function installConfigFiles(
         skippedDrift.push({ relPath: file.relPath, reason: "unmanaged" });
         continue;
       }
-      if (sha256(readFileSync(dest, "utf-8")) !== recorded) {
+      // Hash raw bytes so binary destinations compare correctly; for valid UTF-8
+      // text this digests the same bytes the string form did.
+      if (sha256(readFileSync(dest)) !== recorded) {
         skippedDrift.push({ relPath: file.relPath, reason: "drifted" });
         continue;
       }
@@ -174,6 +176,10 @@ function writeConfigForTarget(
   const expandedFiles: ConfigFile[] = [];
   const skippedMissingVar: { relPath: string; missing: string[] }[] = [];
   for (const file of files) {
+    if (typeof file.content !== "string") {
+      expandedFiles.push(file);
+      continue;
+    }
     const { content, missing } = expandEnvVars(file.content, opts.env);
     if (missing.length > 0) {
       skippedMissingVar.push({ relPath: file.relPath, missing });
