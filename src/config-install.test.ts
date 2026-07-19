@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -161,6 +161,17 @@ describe("configInstall", () => {
     expect(readFileSync(dest)).toEqual(bytes);
     const state = readStateFrom(statePath);
     expect(state.installations[0].configFiles!["hooks/done.aac"]).toBeDefined();
+  });
+
+  test("an executable hook installs executable on a fresh machine", () => {
+    const full = join(configDir, "claude/hooks/notify.sh");
+    mkdirSync(join(full, ".."), { recursive: true });
+    writeFileSync(full, "#!/bin/sh\n", { mode: 0o755 });
+
+    configInstall("claude", { home, configDir, statePath });
+
+    const dest = join(configRootFor("claude", home), "hooks/notify.sh");
+    expect(statSync(dest).mode & 0o777).toBe(0o755);
   });
 
   test("unknown target throws the unknown-target error listing valid targets", () => {

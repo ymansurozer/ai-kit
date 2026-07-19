@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { join, resolve } from "path";
 
 import { createDefu } from "defu";
@@ -28,6 +28,9 @@ export interface ConfigFile {
   /** File content: text as a string, binary files as raw bytes. Binary content
    * never merges, never expands `${VAR}`, and is written/hashed byte-for-byte. */
   content: string | Buffer;
+  /** Source file permission bits, applied to the destination on install so
+   * executable hooks/statuslines stay executable on a fresh machine. */
+  mode?: number;
   /**
    * For a file deep-merged with a machine overlay (JSON/TOML): the top-level
    * keys the overlay contributed to the merged result. Consumed by capture's
@@ -71,7 +74,8 @@ function collectFiles(dir: string, prefix: string, out: ConfigFile[]): void {
       collectFiles(abs, relPath, out);
     } else if (entry.isFile() && !isGitkeep(entry.name)) {
       const buf = readFileSync(abs);
-      out.push({ relPath, content: isBinary(buf) ? buf : buf.toString("utf-8") });
+      const mode = statSync(abs).mode & 0o777;
+      out.push({ relPath, content: isBinary(buf) ? buf : buf.toString("utf-8"), mode });
     }
   }
 }
@@ -146,17 +150,22 @@ function combineFile(target: TargetName, base: ConfigFile, overlay: ConfigFile):
     if (rel.endsWith(".json")) {
       const overlayObj = parseJsonConfig(overlayContent, overlayLabel);
       const merged = deepMerge(overlayObj, parseJsonConfig(baseContent, baseLabel));
-      return { relPath: rel, content: JSON.stringify(merged, null, 2) + "\n", overlayKeys: Object.keys(overlayObj) };
+      return {
+        relPath: rel,
+        content: JSON.stringify(merged, null, 2) + "\n",
+        mode: base.mode,
+        overlayKeys: Object.keys(overlayObj),
+      };
     }
 
     if (rel.endsWith(".toml")) {
       const overlayObj = parseTomlConfig(overlayContent, overlayLabel);
       const merged = deepMerge(overlayObj, parseTomlConfig(baseContent, baseLabel));
-      return { relPath: rel, content: stringifyToml(merged), overlayKeys: Object.keys(overlayObj) };
+      return { relPath: rel, content: stringifyToml(merged), mode: base.mode, overlayKeys: Object.keys(overlayObj) };
     }
   }
 
-  return { relPath: rel, content: overlay.content, overlayReplaced: true };
+  return { relPath: rel, content: overlay.content, mode: overlay.mode, overlayReplaced: true };
 }
 
 /** Merge an overlay file set over a base set: matching files combine per type,
@@ -172,7 +181,7 @@ function mergeOverlay(target: TargetName, baseFiles: ConfigFile[], overlayFiles:
 
   for (const overlay of overlayFiles) {
     if (!basePaths.has(overlay.relPath)) {
-      merged.push({ relPath: overlay.relPath, content: overlay.content, overlayReplaced: true });
+      merged.push({ relPath: overlay.relPath, content: overlay.content, mode: overlay.mode, overlayReplaced: true });
     }
   }
 

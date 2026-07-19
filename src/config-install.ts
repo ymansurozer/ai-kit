@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import { dirname, join } from "path";
 
@@ -82,6 +82,9 @@ export function installConfigFiles(
 
     mkdirSync(dirname(dest), { recursive: true });
     writeFileSync(dest, file.content);
+    if (file.mode !== undefined) {
+      chmodSync(dest, file.mode);
+    }
     installed.push(file.relPath);
     hashes[file.relPath] = sha256(file.content);
   }

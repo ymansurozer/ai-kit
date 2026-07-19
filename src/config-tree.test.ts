@@ -39,8 +39,8 @@ describe("loadConfigTreeFrom", () => {
     writeFixture("codex/AGENTS.md", "# codex");
 
     const tree = loadConfigTreeFrom(tmpDir);
-    expect(tree.claude).toEqual([{ relPath: "settings.json", content: '{"a":1}' }]);
-    expect(tree.codex).toEqual([{ relPath: "AGENTS.md", content: "# codex" }]);
+    expect(tree.claude).toMatchObject([{ relPath: "settings.json", content: '{"a":1}' }]);
+    expect(tree.codex).toMatchObject([{ relPath: "AGENTS.md", content: "# codex" }]);
     expect(tree.pi).toEqual([]);
     expect(tree.opencode).toEqual([]);
   });
@@ -49,7 +49,7 @@ describe("loadConfigTreeFrom", () => {
     writeFixture("claude/hooks/foo.sh", "echo hi");
 
     const tree = loadConfigTreeFrom(tmpDir);
-    expect(tree.claude).toEqual([{ relPath: "hooks/foo.sh", content: "echo hi" }]);
+    expect(tree.claude).toMatchObject([{ relPath: "hooks/foo.sh", content: "echo hi" }]);
   });
 
   test("silently ignores @-prefixed overlay directories", () => {
@@ -81,6 +81,15 @@ describe("loadConfigTreeFrom", () => {
 
     const tree = loadConfigTreeFrom(tmpDir);
     expect(tree.claude.map((f) => f.relPath)).toEqual(["settings.json"]);
+  });
+
+  test("an executable file's permission bits ride along as mode", () => {
+    const full = join(tmpDir, "claude/hooks/notify.sh");
+    mkdirSync(join(full, ".."), { recursive: true });
+    writeFileSync(full, "#!/bin/sh\n", { mode: 0o755 });
+
+    const tree = loadConfigTreeFrom(tmpDir);
+    expect(tree.claude.find((f) => f.relPath === "hooks/notify.sh")!.mode).toBe(0o755);
   });
 
   test("a binary file (invalid UTF-8) is collected as a Buffer, byte-for-byte", () => {
@@ -167,7 +176,7 @@ describe("loadConfigTreeFrom overlays", () => {
     writeFixture("@laptop/pi/settings.json", '{"x":1}');
 
     const tree = loadConfigTreeFrom(tmpDir, "laptop");
-    expect(tree.pi).toEqual([{ relPath: "settings.json", content: '{"x":1}', overlayReplaced: true }]);
+    expect(tree.pi).toMatchObject([{ relPath: "settings.json", content: '{"x":1}', overlayReplaced: true }]);
   });
 
   test("an overlay for a different machine name has no effect", () => {
