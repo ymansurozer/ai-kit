@@ -3,7 +3,20 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { replaceSkillDir } from "./fetch-skill";
+import { replaceSkillDir, resolveFetchNames } from "./fetch-skill";
+
+describe("resolveFetchNames", () => {
+  test("defaults upstreamSkill to localName when not given", () => {
+    expect(resolveFetchNames("my-skill")).toEqual({ localName: "my-skill", upstreamSkill: "my-skill" });
+  });
+
+  test("keeps an explicit upstreamSkill unchanged alongside localName", () => {
+    expect(resolveFetchNames("my-skill", "upstream-skill")).toEqual({
+      localName: "my-skill",
+      upstreamSkill: "upstream-skill",
+    });
+  });
+});
 
 describe("replaceSkillDir", () => {
   let tmpDir: string;

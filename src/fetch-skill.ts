@@ -7,19 +7,36 @@ import { SKILLS_DIR } from "./config";
 import { log } from "./log";
 
 /**
+ * Resolves the local destination name and the upstream skill identifier used
+ * to fetch it. Defaults `upstreamSkill` to `localName` so callers that don't
+ * distinguish the two see identical behavior.
+ */
+export function resolveFetchNames(
+  localName: string,
+  upstreamSkill?: string,
+): { localName: string; upstreamSkill: string } {
+  return { localName, upstreamSkill: upstreamSkill ?? localName };
+}
+
+/**
  * Fetch a skill using Vercel's skills CLI (`bunx skills add`).
  * Runs in a temp directory, then copies the SKILL.md into our skills/ folder.
  */
-export function fetchSkill(name: string, from: string): boolean {
+export function fetchSkill(localName: string, from: string, upstreamSkill?: string): boolean {
+  const names = resolveFetchNames(localName, upstreamSkill);
   const tmpDir = mkdtempSync(join(tmpdir(), "ai-kit-"));
 
   try {
-    log.info(`Fetching ${name} from ${from}`);
+    log.info(`Fetching ${names.localName} from ${from}`);
 
-    const result = spawnSync("bunx", ["skills", "add", from, "--skill", name, "--copy", "-y"], {
-      cwd: tmpDir,
-      stdio: "pipe",
-    });
+    const result = spawnSync(
+      "bunx",
+      ["skills", "add", from, "--skill", names.upstreamSkill, "--copy", "-y"],
+      {
+        cwd: tmpDir,
+        stdio: "pipe",
+      },
+    );
 
     if (result.status !== 0) {
       const stderr = result.stderr?.toString().trim() || "Unknown error";
@@ -27,20 +44,20 @@ export function fetchSkill(name: string, from: string): boolean {
       return false;
     }
 
-    const skillMd = findSkillMd(tmpDir, name);
+    const skillMd = findSkillMd(tmpDir, names.upstreamSkill);
     if (!skillMd) {
-      log.error(`Could not find SKILL.md for "${name}" in fetched content`);
+      log.error(`Could not find SKILL.md for "${names.upstreamSkill}" in fetched content`);
       return false;
     }
 
-    const destDir = join(SKILLS_DIR, name);
+    const destDir = join(SKILLS_DIR, names.localName);
     // The fresh fetch already succeeded (skillMd was found above) — safe to replace
     // the existing skill dir now so files upstream deleted/renamed don't linger.
     replaceSkillDir(dirname(skillMd), destDir);
 
     writeFileSync(
       join(destDir, "source.json"),
-      JSON.stringify({ from, skill: name, fetchedAt: new Date().toISOString() }, null, 2) + "\n",
+      JSON.stringify({ from, skill: names.upstreamSkill, fetchedAt: new Date().toISOString() }, null, 2) + "\n",
     );
 
     return true;
