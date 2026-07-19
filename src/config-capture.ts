@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "path";
 import { parse as parseToml } from "smol-toml";
 
 import { loadMcpsFrom, loadServersFrom, MCPS_DIR, SERVERS_DIR } from "./config";
-import { defaultConfigDir, findPlaceholders, isGitkeep } from "./config-tree";
+import { defaultConfigDir, expandsPlaceholders, findPlaceholders, isGitkeep } from "./config-tree";
 import { log } from "./log";
 import { resolveMachineFrom } from "./machine";
 import { STATE_PATH } from "./state";
@@ -255,7 +255,7 @@ function captureTarget(
 
     const stripped = stripManagedMcps(target, rel, src, mcpNames);
 
-    if (existsSync(dest)) {
+    if (existsSync(dest) && expandsPlaceholders(rel)) {
       warnPlaceholderReplacement(
         target,
         rel,

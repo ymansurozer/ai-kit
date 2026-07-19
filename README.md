@@ -288,6 +288,8 @@ Config files support `${VAR}` placeholders too, but they behave **differently** 
 
 If a referenced variable is unset, that one file is skipped and reported by name; the rest still install. Set it and re-run.
 
+Expansion applies to **`.json` and `.toml` files only** — the data formats harnesses read verbatim. Every other file type installs raw: a shell script's `${var}` is its own runtime syntax, and expanding it at install time would corrupt the script.
+
 ### Drift-aware overwrites
 
 AI Kit records a content hash of every config file it writes, and on the next install compares:
