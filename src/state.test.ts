@@ -243,6 +243,84 @@ describe("state", () => {
     expect(readStateFrom(statePath).installations[0].configFiles).toEqual({ "settings.json": "h1" });
   });
 
+  test("installedSkills/installedMcps snapshots are replaced wholesale, not unioned", () => {
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      installedSkills: ["a", "b"],
+      installedMcps: ["x", "y"],
+      installedAt: "2026-01-01T00:00:00Z",
+    });
+    // A later run installed a narrower set — the snapshot must reflect exactly that,
+    // NOT the union (which is how the selection fields merge).
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      installedSkills: ["a"],
+      installedMcps: ["x"],
+      installedAt: "2026-02-01T00:00:00Z",
+    });
+    const inst = readStateFrom(statePath).installations[0];
+    expect(inst.installedSkills).toEqual(["a"]);
+    expect(inst.installedMcps).toEqual(["x"]);
+  });
+
+  test("an empty snapshot array replaces a prior one (recorded: installed nothing)", () => {
+    saveInstallationTo(statePath, {
+      target: "codex",
+      global: true,
+      installedSkills: ["a"],
+      installedMcps: ["x"],
+      installedAt: "2026-01-01T00:00:00Z",
+    });
+    // The user deleted their last skill/MCP: this run installed nothing, and the
+    // snapshot records `[]` — distinct from `undefined` (never recorded).
+    saveInstallationTo(statePath, {
+      target: "codex",
+      global: true,
+      installedSkills: [],
+      installedMcps: [],
+      installedAt: "2026-02-01T00:00:00Z",
+    });
+    const inst = readStateFrom(statePath).installations[0];
+    expect(inst.installedSkills).toEqual([]);
+    expect(inst.installedMcps).toEqual([]);
+  });
+
+  test("a save that omits the snapshot leaves a prior snapshot untouched", () => {
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      installedSkills: ["a"],
+      installedMcps: ["x"],
+      installedAt: "2026-01-01T00:00:00Z",
+    });
+    // A config-only install (configInstall) saves without a snapshot — it must not
+    // clobber a real install's recorded snapshot back to undefined.
+    saveInstallationTo(statePath, {
+      target: "claude",
+      global: true,
+      config: true,
+      skills: [],
+      mcps: [],
+      installedAt: "2026-02-01T00:00:00Z",
+    });
+    const inst = readStateFrom(statePath).installations[0];
+    expect(inst.installedSkills).toEqual(["a"]);
+    expect(inst.installedMcps).toEqual(["x"]);
+  });
+
+  test("a legacy entry lacking snapshots loads fine and yields no snapshot", () => {
+    writeStateTo(statePath, {
+      installations: [
+        { target: "claude", global: true, path: "/home/u", skills: ["a"], mcps: ["x"], installedAt: "old" },
+      ],
+    });
+    const inst = findInstallationFrom(statePath, "claude", true, "/home/u");
+    expect(inst?.installedSkills).toBeUndefined();
+    expect(inst?.installedMcps).toBeUndefined();
+  });
+
   test("mergeSelection unions two explicit lists without duplicates", () => {
     expect(mergeSelection(["a", "b"], ["b", "c"])).toEqual(["a", "b", "c"]);
     expect(mergeSelection(["a"], undefined)).toBeUndefined();

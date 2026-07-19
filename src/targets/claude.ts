@@ -89,6 +89,29 @@ function installMcpsLocal(mcps: McpConfig[], cwd: string): void {
   writeFileSync(mcpJsonPath, JSON.stringify(existing, null, 2) + "\n");
 }
 
+/**
+ * Delete the named MCP servers from the top-level `mcpServers` object of a Claude
+ * MCP file (`.mcp.json` per-repo, `~/.claude.json` global), leaving every other
+ * server entry and top-level key intact. Re-serialized with 2-space indent and a
+ * trailing newline to match what the installers write. Used by orphan pruning:
+ * hand-added servers whose names aren't in `names` survive. Returns `content`
+ * unchanged when `names` is empty.
+ */
+export function stripClaudeMcpEntries(content: string, names: string[]): string {
+  if (names.length === 0) {
+    return content;
+  }
+  const parsed = JSON.parse(content) as Record<string, unknown>;
+  const servers = parsed.mcpServers;
+  if (servers && typeof servers === "object" && !Array.isArray(servers)) {
+    const map = servers as Record<string, unknown>;
+    for (const name of names) {
+      delete map[name];
+    }
+  }
+  return JSON.stringify(parsed, null, 2) + "\n";
+}
+
 function installMcpsGlobal(mcps: McpConfig[]): void {
   if (mcps.length === 0) {
     return;
