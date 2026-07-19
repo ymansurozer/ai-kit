@@ -163,6 +163,17 @@ describe("configInstall", () => {
     expect(state.installations[0].configFiles!["hooks/done.aac"]).toBeDefined();
   });
 
+  test("a shell script's ${var} syntax is never expanded or treated as a missing placeholder", () => {
+    // A statusline-style script with internal runtime variables, unset at install.
+    const script = '#!/bin/bash\nout="${model_family} ${effort_abbr}"\necho "$out"\n';
+    writeConfig("claude/statusline.sh", script);
+
+    configInstall("claude", { home, configDir, statePath, env: { model_family: "SHOULD-NOT-APPEAR" } });
+
+    const dest = join(configRootFor("claude", home), "statusline.sh");
+    expect(readFileSync(dest, "utf-8")).toBe(script);
+  });
+
   test("an executable hook installs executable on a fresh machine", () => {
     const full = join(configDir, "claude/hooks/notify.sh");
     mkdirSync(join(full, ".."), { recursive: true });

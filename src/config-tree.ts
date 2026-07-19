@@ -312,6 +312,17 @@ export function summarizeConfigTreeFrom(dir: string, machine: string): ConfigTre
 const CONFIG_VAR_PATTERN = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
 
 /**
+ * Whether install-time `${VAR}` expansion applies to this config file. Expansion
+ * exists for data formats a harness reads verbatim (JSON/TOML settings can't
+ * resolve variables themselves). Everything else — above all shell scripts, where
+ * `${var}` is the script's own runtime syntax — installs raw: expanding there
+ * would corrupt the file (or, with the variables unset, wrongly skip it).
+ */
+export function expandsPlaceholders(relPath: string): boolean {
+  return relPath.endsWith(".json") || relPath.endsWith(".toml");
+}
+
+/**
  * Expand every `${VAR}` placeholder in `content` from `env`, returning the
  * expanded string plus the names of referenced-but-unset variables (deduplicated,
  * in order of first appearance). Unlike the MCP placeholder helpers in config.ts
