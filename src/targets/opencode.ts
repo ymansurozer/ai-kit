@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync, writeFileSync, mkdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 
@@ -9,6 +9,7 @@ import {
   type StdioMcpTransportConfig,
   type HttpMcpTransportConfig,
 } from "../config";
+import { parseJsonContent, readJsonFile } from "../json";
 import { log } from "../log";
 import { configRootFor } from "./descriptors";
 import { mergeTargetConfig } from "./merge";
@@ -81,8 +82,8 @@ export function mergeOpencodeMcpsGlobal(mcps: McpConfig[], home: string): void {
  * of truth for MCP config (PRD behavior 19). Re-serialized with 2-space indent and
  * a trailing newline to match what the installer writes.
  */
-export function stripOpencodeMcpEntries(content: string, names: string[]): string {
-  const parsed = JSON.parse(content) as Record<string, unknown>;
+export function stripOpencodeMcpEntries(content: string, names: string[], sourcePath = "opencode.json"): string {
+  const parsed = parseJsonContent(content, sourcePath) as Record<string, unknown>;
   const mcp = parsed.mcp;
   if (mcp && typeof mcp === "object" && !Array.isArray(mcp)) {
     const servers = mcp as Record<string, unknown>;
@@ -97,7 +98,7 @@ function mergeMcpsJson(mcps: McpConfig[], configPath: string, displayPath: strin
   let existing: Record<string, unknown> = {};
 
   if (existsSync(configPath)) {
-    existing = JSON.parse(readFileSync(configPath, "utf-8"));
+    existing = readJsonFile(configPath) as Record<string, unknown>;
   }
 
   if (!existing.mcp) {

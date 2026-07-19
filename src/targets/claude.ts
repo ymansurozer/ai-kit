@@ -1,8 +1,9 @@
-import { existsSync, readFileSync, writeFileSync, readdirSync, rmSync } from "fs";
+import { existsSync, writeFileSync, readdirSync, rmSync } from "fs";
 import { homedir } from "os";
 import { join, dirname } from "path";
 
 import type { Skill, McpConfig } from "../config";
+import { parseJsonContent, readJsonFile } from "../json";
 import { log } from "../log";
 import { configRootFor } from "./descriptors";
 import { mergeTargetConfig } from "./merge";
@@ -65,7 +66,7 @@ function installMcpsLocal(mcps: McpConfig[], cwd: string): void {
   let existing: Record<string, unknown> = {};
 
   if (existsSync(mcpJsonPath)) {
-    existing = JSON.parse(readFileSync(mcpJsonPath, "utf-8"));
+    existing = readJsonFile(mcpJsonPath) as Record<string, unknown>;
   }
 
   if (!existing.mcpServers) {
@@ -97,11 +98,11 @@ function installMcpsLocal(mcps: McpConfig[], cwd: string): void {
  * hand-added servers whose names aren't in `names` survive. Returns `content`
  * unchanged when `names` is empty.
  */
-export function stripClaudeMcpEntries(content: string, names: string[]): string {
+export function stripClaudeMcpEntries(content: string, names: string[], sourcePath = ".mcp.json"): string {
   if (names.length === 0) {
     return content;
   }
-  const parsed = JSON.parse(content) as Record<string, unknown>;
+  const parsed = parseJsonContent(content, sourcePath) as Record<string, unknown>;
   const servers = parsed.mcpServers;
   if (servers && typeof servers === "object" && !Array.isArray(servers)) {
     const map = servers as Record<string, unknown>;
@@ -121,7 +122,7 @@ function installMcpsGlobal(mcps: McpConfig[]): void {
   let existing: Record<string, unknown> = {};
 
   if (existsSync(claudeJsonPath)) {
-    existing = JSON.parse(readFileSync(claudeJsonPath, "utf-8"));
+    existing = readJsonFile(claudeJsonPath) as Record<string, unknown>;
   }
 
   if (!existing.mcpServers) {

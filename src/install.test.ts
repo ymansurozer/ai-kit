@@ -90,6 +90,15 @@ describe("install", () => {
     }
   });
 
+  test("a corrupt global claude MCP JSON fails naming the file", () => {
+    const claudeJson = join(homeDir, ".claude.json");
+    writeFileSync(claudeJson, "{ this is not valid json");
+
+    const result = run(installScript("claude", { global: true, skills: [], mcps: [mcpName] }));
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toContain(claudeJson);
+  });
+
   test("does not persist MCPs for Pi installs", () => {
     const script = `
       import { install } from ${JSON.stringify(installUrl)};

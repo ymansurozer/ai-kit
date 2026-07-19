@@ -118,6 +118,27 @@ describe("global install config phase", () => {
     expect(readFileSync(dest, "utf-8")).toBe(afterFirst);
   });
 
+  test("global pi install with config + zero skills + MCPs requested records config hashes; re-install reports zero drift", () => {
+    // Pi can install no MCPs, so this run installs nothing but config files. The
+    // config phase must still fall through to state so its hashes get recorded —
+    // otherwise the just-written config reads back as unmanaged/drifted forever.
+    const first = runInstallFrom("pi", { global: true, skills: [], mcps: [mcpName] }, homeDir, configDir);
+    expect(first.status).toBe(0);
+    expect(first.stdout + first.stderr).toContain("Pi does not support MCPs");
+    expect(readFileSync(join(homeDir, ".pi", "agent", "settings.json"), "utf-8")).toBe('{"theme":"dark"}');
+
+    const state = JSON.parse(readFileSync(join(homeDir, ".ai-kit", "state.json"), "utf-8"));
+    const pi = state.installations.find((i: { target: string }) => i.target === "pi");
+    expect(pi).toBeDefined();
+    expect(pi.config).toBe(true);
+    expect(pi.configFiles["settings.json"]).toBeDefined();
+
+    // An immediate identical re-install sees the recorded hash and skips nothing.
+    const second = runInstallFrom("pi", { global: true, skills: [], mcps: [mcpName] }, homeDir, configDir);
+    expect(second.status).toBe(0);
+    expect(second.stdout + second.stderr).not.toContain("Skipped config");
+  });
+
   test("Pi receives config files and no MCP config (behavior 11)", () => {
     const result = runInstallFrom("pi", { global: true, skills: [], mcps: [mcpName] }, homeDir, configDir);
     expect(result.status).toBe(0);

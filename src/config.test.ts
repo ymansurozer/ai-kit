@@ -280,6 +280,12 @@ describe("loadMcpsFrom", () => {
     const mcps = loadMcpsFrom(join(tmpDir, "nonexistent"));
     expect(mcps).toEqual([]);
   });
+
+  test("a corrupt MCP definition fails naming the file", () => {
+    const path = join(tmpDir, "broken.json");
+    writeFileSync(path, "{ not valid json");
+    expect(() => loadMcpsFrom(tmpDir)).toThrow(path);
+  });
 });
 
 // --- loadServersFrom (temp dir) ---

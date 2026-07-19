@@ -4,6 +4,7 @@ import { join, resolve } from "path";
 import { createDefu } from "defu";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 
+import { parseJsonContent } from "./json";
 import { log } from "./log";
 import { resolveMachineFrom } from "./machine";
 import { STATE_PATH } from "./state";
@@ -115,13 +116,7 @@ const deepMerge = createDefu((obj, key, value) => {
 });
 
 function parseJsonConfig(content: string, label: string): Record<string, unknown> {
-  try {
-    return JSON.parse(content) as Record<string, unknown>;
-  } catch (err) {
-    throw new Error(`Failed to parse JSON config ${label}: ${err instanceof Error ? err.message : String(err)}`, {
-      cause: err,
-    });
-  }
+  return parseJsonContent(content, label) as Record<string, unknown>;
 }
 
 function parseTomlConfig(content: string, label: string): Record<string, unknown> {
