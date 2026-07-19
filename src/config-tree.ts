@@ -55,12 +55,20 @@ function emptyTree(): ConfigTree {
   return { claude: [], codex: [], pi: [], opencode: [] };
 }
 
-/** Names that are never shippable config and are skipped by every collector:
- * `.gitkeep` markers (exist only to keep empty tree directories in git) and
- * OS junk like Finder's `.DS_Store` (which lands in the working tree whenever
- * the folder is browsed, and would otherwise be installed as config). */
+/** File names that are never shippable config and are skipped by every collector:
+ * `.gitkeep` markers (exist only to keep empty tree directories in git), OS junk
+ * like Finder's `.DS_Store` (which lands in the working tree whenever the folder
+ * is browsed), and Python bytecode caches (`*.pyc`) — all things that would
+ * otherwise be captured or installed as config. */
 export function isIgnoredEntry(name: string): boolean {
-  return name === ".gitkeep" || name === ".DS_Store";
+  return name === ".gitkeep" || name === ".DS_Store" || name.endsWith(".pyc");
+}
+
+/** Directory names that are never shippable config and whose contents every
+ * collector skips entirely: Python's `__pycache__`, which would otherwise pull
+ * bytecode junk into the config tree wholesale. */
+export function isIgnoredDir(name: string): boolean {
+  return name === "__pycache__";
 }
 
 /** True when `buf` does not round-trip through UTF-8 — treated as binary. */
@@ -74,7 +82,9 @@ function collectFiles(dir: string, prefix: string, out: ConfigFile[]): void {
     const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
     const abs = join(dir, entry.name);
     if (entry.isDirectory()) {
-      collectFiles(abs, relPath, out);
+      if (!isIgnoredDir(entry.name)) {
+        collectFiles(abs, relPath, out);
+      }
     } else if (entry.isFile() && !isIgnoredEntry(entry.name)) {
       const buf = readFileSync(abs);
       const mode = statSync(abs).mode & 0o777;
@@ -260,7 +270,9 @@ function collectRelPaths(dir: string, prefix: string, out: string[]): void {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
-      collectRelPaths(join(dir, entry.name), relPath, out);
+      if (!isIgnoredDir(entry.name)) {
+        collectRelPaths(join(dir, entry.name), relPath, out);
+      }
     } else if (entry.isFile() && !isIgnoredEntry(entry.name)) {
       out.push(relPath);
     }
