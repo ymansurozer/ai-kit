@@ -315,7 +315,7 @@ ai-kit config capture claude                   # one target
 ai-kit config capture claude --file mcp.json   # one path, even if not curated (adds it to tracking)
 ```
 
-Capture never reverse-substitutes secrets — git diff is the review layer — but it warns when a captured value overwrites a `${VAR}` placeholder in the repo copy, so you re-placeholder before committing. It also strips the MCP sections AI Kit itself renders into `config.toml` / `opencode.json`, keeping `mcps/` the single source of truth. `~/.claude.json` and Claude's `commands/` (AI Kit's own skill output) are runtime state, never captured.
+Capture never reverse-substitutes secrets — git diff is the review layer — but it warns when a captured value overwrites a `${VAR}` placeholder in the repo copy, so you re-placeholder before committing. It also strips the MCP sections AI Kit itself renders into `config.toml` / `opencode.json`, keeping `mcps/` the single source of truth. `~/.claude.json` and Claude's `skills/` (AI Kit's own skill output) are runtime state, never captured.
 
 ### Seeding the repo from an existing machine
 
@@ -350,7 +350,7 @@ Both skills and MCPs (including local servers) support two install scopes:
 
 | Target   | Skills                                      | MCPs                               |
 | -------- | ------------------------------------------- | ---------------------------------- |
-| Claude   | `~/.claude/commands/<name>.md`              | `~/.claude.json`                   |
+| Claude   | `~/.claude/skills/<name>/SKILL.md`          | `~/.claude.json`                   |
 | Codex    | `~/.agents/skills/<name>/SKILL.md`          | `~/.codex/config.toml`             |
 | Pi       | `~/.agents/skills/<name>/SKILL.md`          | —                                  |
 | OpenCode | `~/.config/opencode/skills/<name>/SKILL.md` | `~/.config/opencode/opencode.json` |
@@ -458,7 +458,7 @@ Browse available third-party skills at **[skills.sh](https://skills.sh)**.
 - **Merge, not overwrite** — MCP configs are merged into existing JSON/TOML, preserving your other entries
 - **Safe per-server merge** — AI Kit only overrides the target-native MCP keys it emits for a given server, preserving unrelated local metadata in that same server entry
 - **Secret-free MCP placeholders** — commit `${VAR}` references once, then render them to each harness at install time
-- **Agent Skills standard** — `SKILL.md` works across 30+ tools without conversion (Claude global commands are the one exception — the CLI handles it)
+- **Agent Skills standard** — `SKILL.md` works across 30+ tools without conversion, including Claude's native personal skills at `~/.claude/skills/`
 - **Local MCP servers** — write your own with [FastMCP](https://github.com/punkpeye/fastmcp), paths resolved automatically at install time
 - **Mirror tree for config** — a file's path inside `config/<target>/` _is_ its destination under the harness config root; no per-file mapping to maintain
 - **Drift-aware config** — config overwrites only when the destination still matches what AI Kit last wrote; drift is reported, never clobbered

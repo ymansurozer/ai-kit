@@ -136,22 +136,24 @@ describe("configCapture", () => {
     expect(baseRead("claude", "hooks/nested/post.sh")).toBe("echo post");
   });
 
-  test("implicit capture never grabs a banned path (claude commands/)", () => {
+  test("implicit capture never grabs a banned path (claude skills/)", () => {
     writeMachine("claude", "settings.json", "{}");
-    writeMachine("claude", "commands/foo.md", "ai-kit output");
+    writeMachine("claude", "skills/foo/SKILL.md", "ai-kit output");
     // Even a base tree that tracks it (shouldn't happen, but capture reads raw).
-    writeTracked("claude", "commands/foo.md", "stale");
+    writeTracked("claude", "skills/foo/SKILL.md", "stale");
 
     configCapture("claude", { home, configDir });
 
     expect(baseExists("claude", "settings.json")).toBe(true);
     // The tracked banned path is neither refreshed nor newly grabbed.
-    expect(baseRead("claude", "commands/foo.md")).toBe("stale");
+    expect(baseRead("claude", "skills/foo/SKILL.md")).toBe("stale");
   });
 
   test("--file inside a banned path errors with the explanation", () => {
-    writeMachine("claude", "commands/foo.md", "ai-kit output");
-    expect(() => configCapture("claude", { home, configDir, file: "commands/foo.md" })).toThrow(/skill-install output/);
+    writeMachine("claude", "skills/foo/SKILL.md", "ai-kit output");
+    expect(() => configCapture("claude", { home, configDir, file: "skills/foo/SKILL.md" })).toThrow(
+      /skill-install output/,
+    );
   });
 
   test("--file escaping the config root is rejected", () => {

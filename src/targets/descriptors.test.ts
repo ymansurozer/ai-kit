@@ -50,7 +50,7 @@ describe("DESCRIPTORS", () => {
   });
 
   test("bans Claude's own skill-install output from the config tree", () => {
-    expect(DESCRIPTORS.claude.bannedConfigPaths).toEqual(["commands"]);
+    expect(DESCRIPTORS.claude.bannedConfigPaths).toEqual(["skills"]);
     expect(DESCRIPTORS.codex.bannedConfigPaths).toEqual([]);
     expect(DESCRIPTORS.pi.bannedConfigPaths).toEqual([]);
     expect(DESCRIPTORS.opencode.bannedConfigPaths).toEqual([]);

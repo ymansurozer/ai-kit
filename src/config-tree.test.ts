@@ -69,9 +69,15 @@ describe("loadConfigTreeFrom", () => {
     expect(Object.keys(tree)).toEqual(["claude", "codex", "pi", "opencode"]);
   });
 
-  test("throws on a banned config path (claude commands/)", () => {
-    writeFixture("claude/commands/foo.md", "banned");
-    expect(() => loadConfigTreeFrom(tmpDir)).toThrow(/commands/);
+  test("throws on a banned config path (claude skills/)", () => {
+    writeFixture("claude/skills/foo.md", "banned");
+    expect(() => loadConfigTreeFrom(tmpDir)).toThrow(/skills/);
+  });
+
+  test("claude commands/ is ordinary config, not banned", () => {
+    writeFixture("claude/commands/foo.md", "# a hand-written command");
+    const tree = loadConfigTreeFrom(tmpDir);
+    expect(tree.claude.map((f) => f.relPath)).toContain("commands/foo.md");
   });
 
   test(".gitkeep markers and OS junk like .DS_Store are never collected, at any depth", () => {
@@ -210,8 +216,8 @@ describe("loadConfigTreeFrom overlays", () => {
   });
 
   test("banned config paths are enforced in overlay trees too", () => {
-    writeFixture("@laptop/claude/commands/foo.md", "banned");
-    expect(() => loadConfigTreeFrom(tmpDir, "laptop")).toThrow(/commands/);
+    writeFixture("@laptop/claude/skills/foo.md", "banned");
+    expect(() => loadConfigTreeFrom(tmpDir, "laptop")).toThrow(/skills/);
   });
 
   test("a malformed JSON overlay throws an error naming the file", () => {

@@ -1,68 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { spawnSync } from "child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { pathToFileURL } from "url";
 
 import type { McpConfig, Skill } from "../config";
-import { convertSkillToCommand, installClaude } from "./claude";
-
-// --- convertSkillToCommand (pure) ---
-
-describe("convertSkillToCommand", () => {
-  test("strips name from frontmatter, keeps description", () => {
-    const input = `---
-name: code-review
-description: Review code for quality
----
-# Code Review`;
-
-    const output = convertSkillToCommand(input);
-    expect(output).toBe(`---
-description: Review code for quality
----
-# Code Review`);
-  });
-
-  test("returns body only when name is the only frontmatter field", () => {
-    const input = `---
-name: solo
----
-Just the body.`;
-
-    const output = convertSkillToCommand(input);
-    expect(output).toBe("Just the body.");
-  });
-
-  test("preserves multiple non-name fields", () => {
-    const input = `---
-name: test
-description: A test
-version: 1.0
----
-Body`;
-
-    const output = convertSkillToCommand(input);
-    expect(output).toContain("description: A test");
-    expect(output).toContain("version: 1.0");
-    expect(output).not.toContain("name:");
-  });
-
-  test("handles content with no frontmatter", () => {
-    const input = "# Just markdown\n\nNo frontmatter.";
-    const output = convertSkillToCommand(input);
-    expect(output).toBe(input);
-  });
-
-  test("handles CRLF frontmatter without keeping the name field", () => {
-    const input = "---\r\nname: windows-skill\r\ndescription: Works on CRLF\r\n---\r\n# Body";
-
-    const output = convertSkillToCommand(input);
-    expect(output).toBe(`---
-description: Works on CRLF
----
-# Body`);
-  });
-});
+import { installClaude } from "./claude";
 
 // --- installClaude per-repo (temp dir) ---
 
@@ -323,5 +267,110 @@ describe("installClaude per-repo", () => {
   test("skips MCP install when no MCPs provided", () => {
     installClaude([makeSkill("s")], [], false, tmpDir);
     expect(existsSync(join(tmpDir, ".mcp.json"))).toBe(false);
+  });
+});
+
+// --- installClaude global (subprocess with HOME override) ---
+//
+// installClaude's global branch resolves paths through homedir(), so it must run
+// in a subprocess whose HOME points at a temp dir (same pattern as install.test.ts).
+
+describe("installClaude global", () => {
+  const claudeUrl = pathToFileURL(join(import.meta.dir, "claude.ts")).href;
+
+  let homeDir: string;
+  let skillDir: string;
+
+  beforeEach(() => {
+    homeDir = mkdtempSync(join(tmpdir(), "ai-kit-home-"));
+    skillDir = mkdtempSync(join(tmpdir(), "ai-kit-gskills-"));
+  });
+
+  afterEach(() => {
+    rmSync(homeDir, { recursive: true, force: true });
+    rmSync(skillDir, { recursive: true, force: true });
+  });
+
+  function makeSkill(
+    name: string,
+    opts?: { references?: Record<string, string>; siblings?: Record<string, string> },
+  ): Skill {
+    const dir = join(skillDir, name);
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, "SKILL.md");
+    writeFileSync(path, `---\nname: ${name}\ndescription: A ${name} skill\n---\n# ${name}`);
+    if (opts?.references) {
+      const refsDir = join(dir, "references");
+      mkdirSync(refsDir, { recursive: true });
+      for (const [file, content] of Object.entries(opts.references)) {
+        writeFileSync(join(refsDir, file), content);
+      }
+    }
+    if (opts?.siblings) {
+      for (const [file, content] of Object.entries(opts.siblings)) {
+        writeFileSync(join(dir, file), content);
+      }
+    }
+    return { name, description: "", body: `# ${name}`, path };
+  }
+
+  function runInstall(skills: Skill[]): ReturnType<typeof spawnSync> {
+    const script = `
+      import { installClaude } from ${JSON.stringify(claudeUrl)};
+      installClaude(${JSON.stringify(skills)}, [], true, ${JSON.stringify(homeDir)});
+    `;
+    return spawnSync(process.execPath, ["-e", script], {
+      env: { ...process.env, HOME: homeDir },
+      encoding: "utf8",
+    });
+  }
+
+  test("installs skills to ~/.claude/skills/<name>/ with frontmatter intact, nothing in commands/", () => {
+    const skill = makeSkill("review", {
+      siblings: { "helper.md": "# helper" },
+      references: { "ref.md": "# ref" },
+    });
+
+    const result = runInstall([skill]);
+    expect(result.status).toBe(0);
+
+    const skillMd = join(homeDir, ".claude", "skills", "review", "SKILL.md");
+    expect(existsSync(skillMd)).toBe(true);
+    const content = readFileSync(skillMd, "utf-8");
+    expect(content).toContain("name: review");
+    expect(content).toContain("# review");
+
+    expect(existsSync(join(homeDir, ".claude", "skills", "review", "helper.md"))).toBe(true);
+    expect(existsSync(join(homeDir, ".claude", "skills", "review", "references", "ref.md"))).toBe(true);
+
+    expect(existsSync(join(homeDir, ".claude", "commands"))).toBe(false);
+  });
+
+  test("removes old command-layout leftovers, keeps hand-written commands, idempotent", () => {
+    const skill = makeSkill("proto", {
+      siblings: { "asset.md": "flat asset" },
+      references: { "r.md": "ref" },
+    });
+
+    const commandsDir = join(homeDir, ".claude", "commands");
+    mkdirSync(join(commandsDir, "references"), { recursive: true });
+    writeFileSync(join(commandsDir, "proto.md"), "old converted command");
+    writeFileSync(join(commandsDir, "asset.md"), "flat asset copy");
+    writeFileSync(join(commandsDir, "references", "r.md"), "ref copy");
+    writeFileSync(join(commandsDir, "my-command.md"), "hand written");
+
+    const result = runInstall([skill]);
+    expect(result.status).toBe(0);
+
+    expect(existsSync(join(commandsDir, "proto.md"))).toBe(false);
+    expect(existsSync(join(commandsDir, "asset.md"))).toBe(false);
+    expect(existsSync(join(commandsDir, "references"))).toBe(false);
+    expect(existsSync(join(commandsDir, "my-command.md"))).toBe(true);
+
+    // Second run: no error, hand-written command still present.
+    const again = runInstall([skill]);
+    expect(again.status).toBe(0);
+    expect(existsSync(join(commandsDir, "my-command.md"))).toBe(true);
+    expect(existsSync(join(commandsDir, "proto.md"))).toBe(false);
   });
 });

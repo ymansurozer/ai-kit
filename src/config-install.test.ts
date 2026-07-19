@@ -218,8 +218,8 @@ describe("configInstall", () => {
   });
 
   test("a banned config path aborts with an explanatory error", () => {
-    writeConfig("claude/commands/foo.md", "banned");
-    expect(() => configInstall("claude", { home, configDir, statePath })).toThrow(/commands/);
+    writeConfig("claude/skills/foo.md", "banned");
+    expect(() => configInstall("claude", { home, configDir, statePath })).toThrow(/skills/);
   });
 
   test("fresh destination is written and its hash recorded in state", () => {
