@@ -2,14 +2,12 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, wri
 import { homedir } from "os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "path";
 
-import { parse as parseToml } from "smol-toml";
-
 import { loadMcpsFrom, loadServersFrom, MCPS_DIR, SERVERS_DIR } from "./config";
 import { defaultConfigDir, expandsPlaceholders, findPlaceholders, isIgnoredDir, isIgnoredEntry } from "./config-tree";
-import { parseJsonContent } from "./json";
 import { log } from "./log";
 import { resolveMachineFrom } from "./machine";
 import { STATE_PATH } from "./state";
+import { parseStructured, structuredKind } from "./structured";
 import { stripCodexMcpSections } from "./targets/codex";
 import { configRootFor, DESCRIPTORS, type TargetName } from "./targets/descriptors";
 import { stripOpencodeMcpEntries } from "./targets/opencode";
@@ -219,12 +217,9 @@ function warnOverlayAttribution(target: TargetName, machine: string, overlayPath
     return;
   }
   const label = `config/@${machine}/${target}/${rel}`;
-  if (rel.endsWith(".json") || rel.endsWith(".toml")) {
-    const content = readFileSync(overlayPath, "utf-8");
-    const parsed = (rel.endsWith(".json") ? parseJsonContent(content, overlayPath) : parseToml(content)) as Record<
-      string,
-      unknown
-    >;
+  const kind = structuredKind(rel);
+  if (kind) {
+    const parsed = parseStructured(kind, readFileSync(overlayPath, "utf-8"), overlayPath);
     const keys = Object.keys(parsed);
     log.warn(
       `${label} overlays ${keys.length > 0 ? keys.join(", ") : "(no keys)"} on ${machine}; ` +

@@ -2,12 +2,11 @@ import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { join, resolve } from "path";
 
 import { createDefu } from "defu";
-import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 
-import { parseJsonContent } from "./json";
 import { log } from "./log";
 import { resolveMachineFrom } from "./machine";
 import { STATE_PATH } from "./state";
+import { parseStructured, stringifyStructured, structuredKind } from "./structured";
 import { DESCRIPTORS, type TargetName } from "./targets/descriptors";
 
 export const CONFIG_DIR = "config";
@@ -125,20 +124,6 @@ const deepMerge = createDefu((obj, key, value) => {
   return false;
 });
 
-function parseJsonConfig(content: string, label: string): Record<string, unknown> {
-  return parseJsonContent(content, label) as Record<string, unknown>;
-}
-
-function parseTomlConfig(content: string, label: string): Record<string, unknown> {
-  try {
-    return parseToml(content);
-  } catch (err) {
-    throw new Error(`Failed to parse TOML config ${label}: ${err instanceof Error ? err.message : String(err)}`, {
-      cause: err,
-    });
-  }
-}
-
 /**
  * Combine a base file with its machine-overlay counterpart. `.json` and `.toml`
  * deep-merge (overlay wins; objects merge, arrays/scalars replace); any other
@@ -153,23 +138,16 @@ function combineFile(target: TargetName, base: ConfigFile, overlay: ConfigFile):
   const overlayContent = overlay.content;
 
   // Binary content can't deep-merge; only string pairs reach the JSON/TOML paths.
-  if (typeof baseContent === "string" && typeof overlayContent === "string") {
-    if (rel.endsWith(".json")) {
-      const overlayObj = parseJsonConfig(overlayContent, overlayLabel);
-      const merged = deepMerge(overlayObj, parseJsonConfig(baseContent, baseLabel));
-      return {
-        relPath: rel,
-        content: JSON.stringify(merged, null, 2) + "\n",
-        mode: base.mode,
-        overlayKeys: Object.keys(overlayObj),
-      };
-    }
-
-    if (rel.endsWith(".toml")) {
-      const overlayObj = parseTomlConfig(overlayContent, overlayLabel);
-      const merged = deepMerge(overlayObj, parseTomlConfig(baseContent, baseLabel));
-      return { relPath: rel, content: stringifyToml(merged), mode: base.mode, overlayKeys: Object.keys(overlayObj) };
-    }
+  const kind = structuredKind(rel);
+  if (kind && typeof baseContent === "string" && typeof overlayContent === "string") {
+    const overlayObj = parseStructured(kind, overlayContent, overlayLabel);
+    const merged = deepMerge(overlayObj, parseStructured(kind, baseContent, baseLabel));
+    return {
+      relPath: rel,
+      content: stringifyStructured(kind, merged),
+      mode: base.mode,
+      overlayKeys: Object.keys(overlayObj),
+    };
   }
 
   return { relPath: rel, content: overlay.content, mode: overlay.mode, overlayReplaced: true };
@@ -328,7 +306,7 @@ const CONFIG_VAR_PATTERN = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
  * would corrupt the file (or, with the variables unset, wrongly skip it).
  */
 export function expandsPlaceholders(relPath: string): boolean {
-  return relPath.endsWith(".json") || relPath.endsWith(".toml");
+  return structuredKind(relPath) !== null;
 }
 
 /**
