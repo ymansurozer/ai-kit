@@ -350,4 +350,180 @@ command = "hand-added"
 
     expect(logs.some((l) => l.includes("re-apply as an overlay"))).toBe(false);
   });
+
+  /** Write the machine-owned manifest at the config-tree root. */
+  function writeManifest(manifest: Record<string, Record<string, string[]>>): void {
+    writeFileSync(join(configDir, "machine-owned.json"), JSON.stringify(manifest));
+  }
+
+  describe("machine-owned keys never cross into the repo", () => {
+    test("an owned key that differs keeps the repo's value and says so", () => {
+      writeManifest({ claude: { "settings.json": ["model"] } });
+      writeTracked("claude", "settings.json", '{"model":"repo-default","theme":"old"}');
+      writeMachine("claude", "settings.json", '{"model":"machine-opus","theme":"new"}');
+
+      const logs = captureLogs(() => configCapture("claude", { home, configDir }));
+
+      const captured = JSON.parse(baseRead("claude", "settings.json"));
+      expect(captured.model).toBe("repo-default");
+      // Non-owned keys still come from the machine.
+      expect(captured.theme).toBe("new");
+      expect(logs.some((l) => l.includes("config/claude/settings.json") && l.includes('"model"'))).toBe(true);
+    });
+
+    test("an owned key present only on the machine is dropped, with a line naming it", () => {
+      writeManifest({ claude: { "settings.json": ["model"] } });
+      writeTracked("claude", "settings.json", '{"theme":"old"}');
+      writeMachine("claude", "settings.json", '{"model":"machine-opus","theme":"new"}');
+
+      const logs = captureLogs(() => configCapture("claude", { home, configDir }));
+
+      const captured = JSON.parse(baseRead("claude", "settings.json"));
+      expect("model" in captured).toBe(false);
+      expect(captured.theme).toBe("new");
+      expect(
+        logs.some((l) => l.includes("config/claude/settings.json") && l.includes("dropped") && l.includes('"model"')),
+      ).toBe(true);
+    });
+
+    test("with no repo copy yet, every owned key drops and the rest is captured", () => {
+      writeManifest({ claude: { "settings.json": ["model", "permissions"] } });
+      writeMachine("claude", "settings.json", '{"model":"opus","permissions":{"allow":["x"]},"theme":"dark"}');
+
+      configCapture("claude", { home, configDir });
+
+      const captured = JSON.parse(baseRead("claude", "settings.json"));
+      expect(captured).toEqual({ theme: "dark" });
+    });
+
+    test("an owned key the repo declares but the machine lacks survives capture", () => {
+      writeManifest({ claude: { "settings.json": ["model"] } });
+      writeTracked("claude", "settings.json", '{"model":"repo-default"}');
+      writeMachine("claude", "settings.json", '{"theme":"dark"}');
+
+      configCapture("claude", { home, configDir });
+
+      const captured = JSON.parse(baseRead("claude", "settings.json"));
+      expect(captured.model).toBe("repo-default");
+      expect(captured.theme).toBe("dark");
+    });
+
+    test("a corrupt machine file with owned keys warns and leaves the repo copy untouched", () => {
+      writeManifest({ claude: { "settings.json": ["model"] } });
+      writeTracked("claude", "settings.json", '{"model":"repo-default"}');
+      writeMachine("claude", "settings.json", "{not json");
+
+      const logs = captureLogs(() => configCapture("claude", { home, configDir }));
+
+      expect(baseRead("claude", "settings.json")).toBe('{"model":"repo-default"}');
+      expect(logs.some((l) => l.includes("Skipped settings.json") && l.includes("leak"))).toBe(true);
+    });
+
+    test("a corrupt repo copy with owned keys warns and leaves it untouched", () => {
+      writeManifest({ claude: { "settings.json": ["model"] } });
+      writeTracked("claude", "settings.json", "{not json");
+      writeMachine("claude", "settings.json", '{"model":"machine-opus"}');
+
+      const logs = captureLogs(() => configCapture("claude", { home, configDir }));
+
+      expect(baseRead("claude", "settings.json")).toBe("{not json");
+      expect(logs.some((l) => l.includes("Skipped settings.json"))).toBe(true);
+    });
+
+    test("an mcp-managed file gets both transforms: MCP sections stripped and owned keys at repo state", () => {
+      writeManifest({ opencode: { "opencode.json": ["model"] } });
+      writeTracked("opencode", "opencode.json", '{"model":"repo-default"}');
+      writeMachine(
+        "opencode",
+        "opencode.json",
+        JSON.stringify({
+          model: "machine-model",
+          theme: "dark",
+          mcp: {
+            context7: { type: "remote", url: "https://mcp.context7.com" },
+            custom: { type: "local", command: ["echo"] },
+          },
+        }),
+      );
+
+      configCapture("opencode", { home, configDir, ...mcpSeams("context7") });
+
+      const captured = JSON.parse(baseRead("opencode", "opencode.json"));
+      expect(captured.mcp.context7).toBeUndefined();
+      expect(captured.mcp.custom).toBeDefined();
+      expect(captured.model).toBe("repo-default");
+      expect(captured.theme).toBe("dark");
+    });
+
+    test("TOML: owned keys take repo state alongside an MCP strip", () => {
+      writeManifest({ codex: { "config.toml": ["projects"] } });
+      writeTracked("codex", "config.toml", '[projects."/repo/path"]\ntrust_level = "trusted"\n');
+      writeMachine(
+        "codex",
+        "config.toml",
+        `model = "gpt-5"
+
+[projects."/machine/path"]
+trust_level = "trusted"
+
+[mcp_servers.context7]
+url = "https://mcp.context7.com"
+`,
+      );
+
+      const logs = captureLogs(() => configCapture("codex", { home, configDir, ...mcpSeams("context7") }));
+
+      const captured = baseRead("codex", "config.toml");
+      expect(captured).toContain('model = "gpt-5"');
+      // The machine's trust entries never cross; the repo's stay.
+      expect(captured).toContain("/repo/path");
+      expect(captured).not.toContain("/machine/path");
+      // MCP sections are stripped in the same pass.
+      expect(captured).not.toContain("mcp_servers.context7");
+      expect(logs.some((l) => l.includes("config/codex/config.toml") && l.includes('"projects"'))).toBe(true);
+    });
+
+    test("TOML: an owned key present only on the machine is dropped", () => {
+      writeManifest({ codex: { "config.toml": ["projects"] } });
+      writeTracked("codex", "config.toml", 'model = "gpt-5"\n');
+      writeMachine("codex", "config.toml", 'model = "gpt-5"\n\n[projects."/machine/path"]\ntrust_level = "trusted"\n');
+
+      configCapture("codex", { home, configDir });
+
+      const captured = baseRead("codex", "config.toml");
+      expect(captured).toContain('model = "gpt-5"');
+      expect(captured).not.toContain("projects");
+    });
+
+    test("a file with no declared keys is captured byte-for-byte even when the manifest exists", () => {
+      writeManifest({ claude: { "settings.json": ["model"] } });
+      writeMachine("claude", "settings.json", '{"model":"opus"}');
+      // Ugly formatting on an undeclared file: no parse, no re-stringify.
+      writeMachine("claude", "CLAUDE.md", "# claude");
+      writeTracked("claude", "other.json", "{}");
+      writeMachine("claude", "other.json", '{ "a":1,   "b":2 }');
+
+      configCapture("claude", { home, configDir });
+
+      expect(baseRead("claude", "CLAUDE.md")).toBe("# claude");
+      expect(baseRead("claude", "other.json")).toBe('{ "a":1,   "b":2 }');
+    });
+
+    test("with no manifest, a file that would be declared is captured raw", () => {
+      writeTracked("claude", "settings.json", '{"model":"repo-default"}');
+      writeMachine("claude", "settings.json", '{ "model":"machine-opus" }');
+
+      configCapture("claude", { home, configDir });
+
+      expect(baseRead("claude", "settings.json")).toBe('{ "model":"machine-opus" }');
+    });
+
+    test("a malformed manifest aborts the capture", () => {
+      writeFileSync(join(configDir, "machine-owned.json"), "{not json");
+      writeMachine("claude", "settings.json", '{"model":"opus"}');
+
+      expect(() => configCapture("claude", { home, configDir })).toThrow(/machine-owned\.json/);
+      expect(baseExists("claude", "settings.json")).toBe(false);
+    });
+  });
 });
