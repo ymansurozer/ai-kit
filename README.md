@@ -298,16 +298,35 @@ AI Kit records a content hash of every config file it writes, and on the next in
 - **Modified out from under it** — drift, e.g. Claude Code wrote a permission grant into `settings.json` — → skipped and reported with a reconcile hint.
 - **Already exists but AI Kit has never managed it** (adopting config on an existing machine) → also skipped, treated like drift.
 
+Some keys inside a file are churned by the harness itself in normal use — Claude Code rewrites `model` on every model switch, Codex appends trust entries to `projects`. Declare those top-level keys **machine-owned** ([below](#machine-owned-keys)) and their churn stops counting as drift: the rest of the file still syncs from the repo, and the machine's own state for an owned key — its value, or its absence — always wins over the repo's. Machine-owned keys are the one thing `--force` doesn't override: force means "the repo wins over drift" for everything else, but an owned key stays the machine's even under force.
+
 Drift is never resolved automatically. You choose:
 
 ```bash
-ai-kit config install --force    # the repo version wins, drift and all
+ai-kit config install --force    # the repo version wins, drift and all — except machine-owned keys
 ai-kit config capture            # or pull the machine's live config back into the repo
 ```
 
+### Machine-owned keys
+
+Declare which top-level keys in a config file belong to the machine, not the repo, in a manifest at the config tree root: `config/machine-owned.json`, mapping target → file → an array of top-level key names. This example is normative:
+
+```json
+{
+  "claude": { "settings.json": ["model", "permissions"] },
+  "codex": { "config.toml": ["projects"] }
+}
+```
+
+Here, `claude/settings.json` owns `model` and `permissions`; `codex/config.toml` owns `projects`. Only top-level keys are supported — there's no way to own `permissions.allow` but not `permissions.deny`; the whole `permissions` key is the machine's or it isn't.
+
+A manifest entry naming an unknown target, a file that isn't JSON or TOML, or a value that isn't an array of strings is skipped with a warning naming the entry — its valid siblings still apply. The manifest file itself being unreadable or not valid JSON is a hard error that aborts the config phase entirely, rather than proceeding without the protection it provides — a sync could otherwise clobber machine values it was never told to leave alone.
+
+Upgrading a machine that already has a recorded hash from before this feature existed needs no manual step: the drift check accepts either the new stripped hash or the old raw one, and re-records the stripped hash on the next install. No manifest at all means every flow behaves exactly as it did before machine-owned keys existed.
+
 ### Capturing config back into the repo
 
-`ai-kit config capture` is the reverse direction — it copies a machine's live config into the base tree for git-diff review. It grabs the union of files already tracked in the repo and each target's curated well-known files that exist on the machine.
+`ai-kit config capture` is the reverse direction — it copies a machine's live config into the base tree for git-diff review. It grabs the union of files already tracked in the repo and each target's curated well-known files that exist on the machine. For a file with [machine-owned keys](#machine-owned-keys), capture never lets those keys cross into the repo: the repo keeps its own prior value (or absence) for each, and a key present only on the machine is dropped from the capture — every kept or dropped key is logged by name. A destination that can't be parsed is skipped entirely rather than risking a raw copy that would leak owned keys into the repo.
 
 ```bash
 ai-kit config capture                          # every target
