@@ -2,14 +2,14 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, wri
 import { homedir } from "os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "path";
 
-import { parse as parseToml } from "smol-toml";
-
 import { loadMcpsFrom, loadServersFrom, MCPS_DIR, SERVERS_DIR } from "./config";
 import { defaultConfigDir, expandsPlaceholders, findPlaceholders, isIgnoredDir, isIgnoredEntry } from "./config-tree";
-import { parseJsonContent } from "./json";
 import { log } from "./log";
 import { resolveMachineFrom } from "./machine";
+import { loadMachineOwnedFrom, type MachineOwnedKeys } from "./machine-owned";
+import { spliceOwnedKeys } from "./owned-keys";
 import { STATE_PATH } from "./state";
+import { parseStructured, structuredKind, type StructuredKind } from "./structured";
 import { stripCodexMcpSections } from "./targets/codex";
 import { configRootFor, DESCRIPTORS, type TargetName } from "./targets/descriptors";
 import { stripOpencodeMcpEntries } from "./targets/opencode";
@@ -178,6 +178,67 @@ function stripManagedMcps(target: TargetName, rel: string, src: string, mcpNames
   return undefined;
 }
 
+/** An empty document in `kind`, standing in for a repo copy that does not exist
+ * yet: it has no state for any key, so every machine-owned key drops. */
+function emptyDocument(kind: StructuredKind): string {
+  return kind === "json" ? "{}" : "";
+}
+
+/**
+ * Apply the never-cross rule to one captured file (machine-owned PRD behavior 6):
+ * the captured copy is the machine's content carrying the REPO's state — value or
+ * absence — for every machine-owned key, so a machine's value for such a key can
+ * never travel into the repo. Repo defaults for owned keys are authored by hand.
+ *
+ * This is the install-time splice with its two sides swapped: install builds on the
+ * repo's content and takes owned keys from the destination, capture builds on the
+ * machine's content and takes them from the repo copy — absence included, which is
+ * how a machine-only owned key gets dropped. `basePath` is the repo BASE copy
+ * (capture never reads or writes an overlay); a repo copy that does not exist yet
+ * has state for nothing, so every owned key drops.
+ *
+ * Each owned key gets a line naming the file and the key: kept from the repo, or
+ * dropped from the machine. Returns `undefined` when either side fails to parse,
+ * having warned — the repo copy is then left exactly as it was, because copying the
+ * machine's bytes raw would leak the very keys this rule exists to keep out
+ * (machine-owned PRD behavior 12: never-cross outweighs capture completeness).
+ */
+function restoreOwnedKeys(
+  target: TargetName,
+  rel: string,
+  machineContent: string,
+  machinePath: string,
+  basePath: string,
+  keys: string[],
+  kind: StructuredKind,
+): string | undefined {
+  const repoLabel = `config/${target}/${rel}`;
+  const repoContent = existsSync(basePath) ? readFileSync(basePath, "utf-8") : emptyDocument(kind);
+  try {
+    // Parsed here for the per-key report; the splice re-parses both sides, which is
+    // the price of keeping one primitive shared with install.
+    const machineParsed = parseStructured(kind, machineContent, machinePath);
+    const repoParsed = parseStructured(kind, repoContent, repoLabel);
+    for (const key of keys) {
+      if (key in repoParsed) {
+        log.info(`${repoLabel}: kept the repo's "${key}" — machine-owned, this machine's value stays here`);
+      } else if (key in machineParsed) {
+        log.warn(`${repoLabel}: dropped this machine's "${key}" — machine-owned and the repo copy declares none`);
+      }
+    }
+    // Sides swapped against the parameter names: `repo` is the base being built on
+    // (the machine's content), `dest` is the side owned keys are taken from (the
+    // repo copy).
+    return spliceOwnedKeys(machineContent, repoContent, keys, kind, { repo: machinePath, dest: repoLabel });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    log.warn(
+      `Skipped ${rel}: ${detail} — it declares machine-owned keys, and capturing it raw would leak them into the repo`,
+    );
+    return undefined;
+  }
+}
+
 /**
  * Placeholder-replacement warning (behavior 20): if the existing repo copy carried
  * `${VAR}` placeholders that the incoming captured content no longer contains, warn
@@ -219,12 +280,9 @@ function warnOverlayAttribution(target: TargetName, machine: string, overlayPath
     return;
   }
   const label = `config/@${machine}/${target}/${rel}`;
-  if (rel.endsWith(".json") || rel.endsWith(".toml")) {
-    const content = readFileSync(overlayPath, "utf-8");
-    const parsed = (rel.endsWith(".json") ? parseJsonContent(content, overlayPath) : parseToml(content)) as Record<
-      string,
-      unknown
-    >;
+  const kind = structuredKind(rel);
+  if (kind) {
+    const parsed = parseStructured(kind, readFileSync(overlayPath, "utf-8"), overlayPath);
     const keys = Object.keys(parsed);
     log.warn(
       `${label} overlays ${keys.length > 0 ? keys.join(", ") : "(no keys)"} on ${machine}; ` +
@@ -245,6 +303,7 @@ function captureTarget(
   fileArg: string | undefined,
   mcpNames: string[],
   machine: string,
+  machineOwned: MachineOwnedKeys,
 ): void {
   const configRoot = configRootFor(target, home);
   const baseTargetDir = join(configDir, target);
@@ -259,14 +318,30 @@ function captureTarget(
     const src = join(configRoot, rel);
     const dest = join(baseTargetDir, rel);
 
-    const stripped = stripManagedMcps(target, rel, src, mcpNames);
+    // `undefined` all the way through means "no transform applies" — the file is
+    // copied byte-for-byte, exactly as it was before either transform existed.
+    let transformed = stripManagedMcps(target, rel, src, mcpNames);
+
+    const keys = machineOwned.ownedKeysFor(target, rel);
+    // Per-key ownership needs parseable text; the manifest loader already rejects
+    // other extensions, so this only ever guards against a stale declaration.
+    const kind = keys.length > 0 ? structuredKind(rel) : null;
+    if (kind !== null) {
+      // Both transforms apply, in this order: the MCP strip works on the raw string,
+      // and its output is the machine content the owned-key restore builds on.
+      const restored = restoreOwnedKeys(target, rel, transformed ?? readFileSync(src, "utf-8"), src, dest, keys, kind);
+      if (restored === undefined) {
+        continue;
+      }
+      transformed = restored;
+    }
 
     if (existsSync(dest) && expandsPlaceholders(rel)) {
       warnPlaceholderReplacement(
         target,
         rel,
         readFileSync(dest, "utf-8"),
-        () => stripped ?? readFileSync(src, "utf-8"),
+        () => transformed ?? readFileSync(src, "utf-8"),
       );
     }
     if (hasOverlay) {
@@ -274,8 +349,8 @@ function captureTarget(
     }
 
     mkdirSync(dirname(dest), { recursive: true });
-    if (stripped !== undefined) {
-      writeFileSync(dest, stripped);
+    if (transformed !== undefined) {
+      writeFileSync(dest, transformed);
     } else {
       cpSync(src, dest);
     }
@@ -299,11 +374,12 @@ function captureTarget(
  * No target captures every target; a target limits to one; `--file` requires an
  * explicit single target. Capture never installs, never touches state hashes, never
  * expands or contracts `${VAR}`, and only ever writes the base tree (never overlay
- * `@` directories). Beyond raw copying it applies three safeguards: it strips
+ * `@` directories). Beyond raw copying it applies four safeguards: it strips
  * ai-kit-rendered MCP sections from the managed files (behavior 19), warns when it
  * overwrites a `${VAR}` placeholder in the repo copy with a concrete value
- * (behavior 20), and warns when the effective machine's overlay contributes to a
- * captured file (behavior 21).
+ * (behavior 20), warns when the effective machine's overlay contributes to a
+ * captured file (behavior 21), and keeps machine-owned keys at the repo's state so
+ * they never cross into the repo (machine-owned PRD behavior 6).
  *
  * `home`/`configDir`, `mcpsDir`/`serversDir`, and `machine`/`statePath` are test
  * seams, defaulting to the real home, repo `config/`, repo `mcps/` + `servers/`,
@@ -323,10 +399,14 @@ export function configCapture(target?: string, options: ConfigCaptureOptions = {
   }
 
   const mcpNames = [...loadMcpsFrom(mcpsDir), ...loadServersFrom(serversDir)].map((mcp) => mcp.name);
+  // Read once for the whole run, before anything is written: a malformed manifest
+  // must abort every target rather than let the first one's machine-owned values
+  // cross into the repo (machine-owned PRD behavior 10).
+  const machineOwned = loadMachineOwnedFrom(configDir);
 
   const targets = resolveCaptureTargets(target);
   for (const t of targets) {
-    captureTarget(t, home, configDir, fileArg, mcpNames, machine);
+    captureTarget(t, home, configDir, fileArg, mcpNames, machine, machineOwned);
   }
 
   log.info("Review the captured files with git diff, then commit.");

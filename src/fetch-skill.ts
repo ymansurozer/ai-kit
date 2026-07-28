@@ -29,14 +29,10 @@ export function fetchSkill(localName: string, from: string, upstreamSkill?: stri
   try {
     log.info(`Fetching ${names.localName} from ${from}`);
 
-    const result = spawnSync(
-      "bunx",
-      ["skills", "add", from, "--skill", names.upstreamSkill, "--copy", "-y"],
-      {
-        cwd: tmpDir,
-        stdio: "pipe",
-      },
-    );
+    const result = spawnSync("bunx", ["skills", "add", from, "--skill", names.upstreamSkill, "--copy", "-y"], {
+      cwd: tmpDir,
+      stdio: "pipe",
+    });
 
     if (result.status !== 0) {
       const stderr = result.stderr?.toString().trim() || "Unknown error";

@@ -5,11 +5,7 @@ import { loadSkills, loadSkillsFrom } from "./config";
 import { fetchSkill } from "./fetch-skill";
 import { log } from "./log";
 
-export function update(
-  name?: string,
-  skillsDir?: string,
-  fetcher: typeof fetchSkill = fetchSkill,
-): void {
+export function update(name?: string, skillsDir?: string, fetcher: typeof fetchSkill = fetchSkill): void {
   const skills = skillsDir ? loadSkillsFrom(skillsDir) : loadSkills();
 
   let sourced;
