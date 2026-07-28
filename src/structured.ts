@@ -48,11 +48,8 @@ export function parseStructured(
   try {
     return parseTomlContent(content);
   } catch (err) {
-    throw new Error(
-      `Failed to parse TOML config ${label}: ${err instanceof Error ? err.message : String(err)}` +
-        `${hint ? ` — ${hint}` : ""}`,
-      { cause: err },
-    );
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to parse TOML config ${label}: ${detail}${hint ? ` — ${hint}` : ""}`, { cause: err });
   }
 }
 
