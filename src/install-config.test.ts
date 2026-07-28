@@ -359,4 +359,65 @@ describe("sync propagates config to tracked global targets (behaviors 14, 15)", 
     expect(result.status).toBe(0);
     expect(readFileSync(dest, "utf-8")).toBe('{"model":"hand-edited"}');
   });
+
+  // `watch` never checks config drift itself — its install step shells out to
+  // `ai-kit sync` (see subprocessInstall in src/watch.ts), which is exactly what
+  // runSyncFrom drives here. So pinning behavior 14 (owned-key churn doesn't
+  // appear in watch's drift reports) at the sync() level pins it on the watch
+  // path too, with no separate watch-side plumbing to test.
+  test("owned-key-only churn reports no drift on the sync path watch uses (behavior 14)", () => {
+    writeConfig("machine-owned.json", JSON.stringify({ claude: { "settings.json": ["model"] } }));
+    writeConfig("claude/settings.json", '{"model":"opus","theme":"dark"}');
+    seedState([
+      {
+        target: "claude",
+        global: true,
+        config: true,
+        skills: [],
+        mcps: [],
+        configFiles: {},
+        installedAt: "2026-01-01",
+      },
+    ]);
+    expect(runSyncFrom(homeDir, configDir).status).toBe(0);
+
+    // The harness switches the model out from under ai-kit — the only local change.
+    const dest = join(homeDir, ".claude", "settings.json");
+    writeFileSync(dest, '{"model":"sonnet","theme":"dark"}');
+
+    const result = runSyncFrom(homeDir, configDir);
+    expect(result.status).toBe(0);
+    expect(result.stdout + result.stderr).not.toContain("Skipped config");
+    expect(result.stdout + result.stderr).not.toContain("drifted");
+    // The machine's model survives the sync; nothing else changed either.
+    expect(JSON.parse(readFileSync(dest, "utf-8"))).toEqual({ model: "sonnet", theme: "dark" });
+  });
+
+  test("a non-owned-key edit still reports drift on the sync path watch uses (behavior 14)", () => {
+    writeConfig("machine-owned.json", JSON.stringify({ claude: { "settings.json": ["model"] } }));
+    writeConfig("claude/settings.json", '{"model":"opus","theme":"dark"}');
+    seedState([
+      {
+        target: "claude",
+        global: true,
+        config: true,
+        skills: [],
+        mcps: [],
+        configFiles: {},
+        installedAt: "2026-01-01",
+      },
+    ]);
+    expect(runSyncFrom(homeDir, configDir).status).toBe(0);
+
+    // A hand edit to a key nobody owns — still drift, exactly as before this feature.
+    const dest = join(homeDir, ".claude", "settings.json");
+    const handEdited = '{"model":"opus","theme":"hand-edited"}';
+    writeFileSync(dest, handEdited);
+    writeConfig("claude/settings.json", '{"model":"opus","theme":"light"}');
+
+    const result = runSyncFrom(homeDir, configDir);
+    expect(result.status).toBe(0);
+    expect(result.stdout + result.stderr).toContain("Skipped config");
+    expect(readFileSync(dest, "utf-8")).toBe(handEdited);
+  });
 });
