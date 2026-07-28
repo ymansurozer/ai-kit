@@ -1,9 +1,11 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
+import { createHash } from "crypto";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
 import { installConfigFiles, configInstall } from "./config-install";
+import { stripOwnedKeys } from "./owned-keys";
 import { readStateFrom, writeStateTo, saveMachineOverrideTo } from "./state";
 import { configRootFor } from "./targets/descriptors";
 
@@ -476,5 +478,260 @@ describe("configInstall MCP re-merge on shared destination files (behavior 10)",
     const content = readFileSync(dest, "utf-8");
     expect(content).toContain('model = "gpt-5-codex"');
     expect(content).not.toContain("[mcp_servers.playwright]");
+  });
+});
+
+function sha256(content: string): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+describe("configInstall with machine-owned keys", () => {
+  let tmpDir: string;
+  let home: string;
+  let configDir: string;
+  let statePath: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "ai-kit-config-owned-"));
+    home = join(tmpDir, "home");
+    configDir = join(tmpDir, "config");
+    statePath = join(tmpDir, "state.json");
+    mkdirSync(home, { recursive: true });
+    mkdirSync(configDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function writeConfig(relPath: string, content: string): void {
+    const full = join(configDir, relPath);
+    mkdirSync(join(full, ".."), { recursive: true });
+    writeFileSync(full, content);
+  }
+
+  /** Write the config tree's machine-owned manifest; `content` may be raw text to
+   * cover the malformed case. */
+  function writeManifest(content: unknown): void {
+    const text = typeof content === "string" ? content : JSON.stringify(content);
+    writeFileSync(join(configDir, "machine-owned.json"), text);
+  }
+
+  function destPath(target: "claude" | "codex", relPath: string): string {
+    return join(configRootFor(target, home), relPath);
+  }
+
+  /** Write a destination file as if the harness (or a human) had rewritten it. */
+  function writeDest(target: "claude" | "codex", relPath: string, content: string): void {
+    const dest = destPath(target, relPath);
+    mkdirSync(join(dest, ".."), { recursive: true });
+    writeFileSync(dest, content);
+  }
+
+  function readDest(target: "claude" | "codex", relPath: string): string {
+    return readFileSync(destPath(target, relPath), "utf-8");
+  }
+
+  function recordedHash(target: string, relPath: string): string | undefined {
+    return readStateFrom(statePath).installations.find((i) => i.target === target)?.configFiles?.[relPath];
+  }
+
+  /** Run an install with `log` captured, returning everything it printed. */
+  function installCapturingOutput(target: string, extra: { force?: boolean; machine?: string } = {}): string {
+    const spy = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      configInstall(target, { home, configDir, statePath, mcps: [], ...extra });
+      return spy.mock.calls.map((c) => String(c[0])).join("\n");
+    } finally {
+      spy.mockRestore();
+    }
+  }
+
+  test("a machine-owned key churned at the destination no longer blocks the file from syncing", () => {
+    writeManifest({ claude: { "settings.json": ["model"] } });
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "dark" }));
+    configInstall("claude", { home, configDir, statePath });
+
+    // The harness switches the model out from under ai-kit; the repo moves on too.
+    writeDest("claude", "settings.json", JSON.stringify({ model: "sonnet", theme: "dark" }));
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "light" }));
+    configInstall("claude", { home, configDir, statePath });
+
+    // Written, not drift-skipped: the machine keeps its model, everything else refreshes.
+    expect(JSON.parse(readDest("claude", "settings.json"))).toEqual({ model: "sonnet", theme: "light" });
+  });
+
+  test("a non-owned key edited in the same file still trips the drift guard", () => {
+    writeManifest({ claude: { "settings.json": ["model"] } });
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "dark" }));
+    configInstall("claude", { home, configDir, statePath });
+
+    const handEdited = JSON.stringify({ model: "opus", theme: "hand-edited" });
+    writeDest("claude", "settings.json", handEdited);
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "light" }));
+    configInstall("claude", { home, configDir, statePath });
+
+    expect(readDest("claude", "settings.json")).toBe(handEdited);
+  });
+
+  test("a destination that does not exist is seeded with the repo content as-is", () => {
+    const repo = JSON.stringify({ model: "opus", theme: "dark" });
+    writeManifest({ claude: { "settings.json": ["model"] } });
+    writeConfig("claude/settings.json", repo);
+
+    configInstall("claude", { home, configDir, statePath });
+
+    expect(readDest("claude", "settings.json")).toBe(repo);
+  });
+
+  test("a destination lacking an owned key the repo has does not get it back", () => {
+    writeManifest({ claude: { "settings.json": ["model"] } });
+    writeConfig("claude/settings.json", JSON.stringify({ theme: "dark" }));
+    configInstall("claude", { home, configDir, statePath });
+
+    // The repo later gains a default for the owned key: it seeds fresh machines only.
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "light" }));
+    configInstall("claude", { home, configDir, statePath });
+
+    expect(JSON.parse(readDest("claude", "settings.json"))).toEqual({ theme: "light" });
+  });
+
+  test("--force resets non-owned content to the repo's but leaves owned keys with the machine", () => {
+    writeManifest({ claude: { "settings.json": ["model"] } });
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "dark" }));
+    configInstall("claude", { home, configDir, statePath });
+
+    writeDest("claude", "settings.json", JSON.stringify({ model: "sonnet", theme: "hand-edited", extra: "local" }));
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "light" }));
+    configInstall("claude", { home, configDir, statePath, force: true });
+
+    expect(JSON.parse(readDest("claude", "settings.json"))).toEqual({ model: "sonnet", theme: "light" });
+  });
+
+  test("a legacy raw whole-file hash still matches an untouched destination and is re-recorded stripped", () => {
+    writeManifest({ claude: { "settings.json": ["model"] } });
+    const lastWritten = JSON.stringify({ model: "opus", theme: "dark" });
+    writeDest("claude", "settings.json", lastWritten);
+    // A machine that last installed before this feature: state holds the raw hash.
+    writeStateTo(statePath, {
+      installations: [
+        {
+          target: "claude",
+          global: true,
+          path: undefined,
+          config: true,
+          skills: [],
+          mcps: [],
+          configFiles: { "settings.json": sha256(lastWritten) },
+          installedAt: "2026-01-01",
+        },
+      ],
+    });
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "light" }));
+
+    configInstall("claude", { home, configDir, statePath });
+
+    const written = readDest("claude", "settings.json");
+    expect(JSON.parse(written)).toEqual({ model: "opus", theme: "light" });
+    const recorded = recordedHash("claude", "settings.json");
+    expect(recorded).toBe(sha256(stripOwnedKeys(written, ["model"], "json", "settings.json")));
+    expect(recorded).not.toBe(sha256(written));
+  });
+
+  test("a destination that cannot be parsed is skipped, named with the parse problem, and never overwritten", () => {
+    writeManifest({ claude: { "settings.json": ["model"] } });
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "dark" }));
+    configInstall("claude", { home, configDir, statePath });
+
+    const corrupt = '{ "model": "sonnet", ';
+    writeDest("claude", "settings.json", corrupt);
+    const output = installCapturingOutput("claude");
+
+    expect(readDest("claude", "settings.json")).toBe(corrupt);
+    expect(output).toContain("Skipped config settings.json");
+    expect(output).toContain("Failed to parse JSON file");
+    expect(output).toContain(destPath("claude", "settings.json"));
+
+    // --force cannot help: the machine's owned keys are unreadable, so it stays put.
+    configInstall("claude", { home, configDir, statePath, force: true });
+    expect(readDest("claude", "settings.json")).toBe(corrupt);
+  });
+
+  test("installConfigFiles reports a corrupt destination as its own skip reason with the parse detail", () => {
+    const root = join(tmpDir, "root");
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, "settings.json"), "{ oops");
+
+    const outcome = installConfigFiles([{ relPath: "settings.json", content: "{}" }], root, {
+      recordedHashes: { "settings.json": "whatever" },
+      ownedKeysFor: () => ["model"],
+    });
+
+    expect(outcome.installed).toEqual([]);
+    expect(outcome.skippedDrift).toHaveLength(1);
+    expect(outcome.skippedDrift[0].reason).toBe("corrupt");
+    expect(outcome.skippedDrift[0].detail).toContain(join(root, "settings.json"));
+  });
+
+  test("an invalid manifest entry warns and leaves its valid siblings in force", () => {
+    writeManifest({ nonsense: { "settings.json": ["model"] }, claude: { "settings.json": ["model"] } });
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "dark" }));
+    const output = installCapturingOutput("claude");
+    expect(output).toContain('unknown target "nonsense"');
+
+    // The valid claude entry still protects the model across a re-install.
+    writeDest("claude", "settings.json", JSON.stringify({ model: "sonnet", theme: "dark" }));
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "light" }));
+    configInstall("claude", { home, configDir, statePath });
+    expect(JSON.parse(readDest("claude", "settings.json"))).toEqual({ model: "sonnet", theme: "light" });
+  });
+
+  test("a malformed manifest aborts the config phase naming it, before anything is written", () => {
+    writeManifest('{ "claude": ');
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus" }));
+
+    expect(() => configInstall("claude", { home, configDir, statePath })).toThrow(/machine-owned\.json/);
+    expect(existsSync(destPath("claude", "settings.json"))).toBe(false);
+  });
+
+  test("TOML behaves identically: churn in an owned key syncs the rest of the file", () => {
+    writeManifest({ codex: { "config.toml": ["model"] } });
+    writeConfig("codex/config.toml", 'model = "gpt-5-codex"\napproval = "on-request"\n');
+    configInstall("codex", { home, configDir, statePath, mcps: [] });
+
+    writeDest("codex", "config.toml", 'model = "gpt-5.1-codex-max"\napproval = "on-request"\n');
+    writeConfig("codex/config.toml", 'model = "gpt-5-codex"\napproval = "never"\n');
+    configInstall("codex", { home, configDir, statePath, mcps: [] });
+
+    const written = readDest("codex", "config.toml");
+    expect(written).toContain('model = "gpt-5.1-codex-max"');
+    expect(written).toContain('approval = "never"');
+  });
+
+  test("an overlay's value for an owned key seeds a fresh machine but never beats an existing destination", () => {
+    writeManifest({ claude: { "settings.json": ["model"] } });
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "dark" }));
+    writeConfig("@laptop/claude/settings.json", JSON.stringify({ model: "sonnet" }));
+
+    configInstall("claude", { home, configDir, statePath, machine: "laptop" });
+    expect(JSON.parse(readDest("claude", "settings.json"))).toEqual({ model: "sonnet", theme: "dark" });
+
+    // Machine switches models; the overlay must not pull it back on the next sync.
+    writeDest("claude", "settings.json", JSON.stringify({ model: "haiku", theme: "dark" }));
+    configInstall("claude", { home, configDir, statePath, machine: "laptop" });
+    expect(JSON.parse(readDest("claude", "settings.json"))).toEqual({ model: "haiku", theme: "dark" });
+  });
+
+  test("with no manifest, the recorded hash is the raw file hash and any edit is drift (regression guard)", () => {
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "dark" }));
+    configInstall("claude", { home, configDir, statePath });
+    expect(recordedHash("claude", "settings.json")).toBe(sha256(readDest("claude", "settings.json")));
+
+    // Without a declaration, a model switch is drift exactly as it always was.
+    const handEdited = JSON.stringify({ model: "sonnet", theme: "dark" });
+    writeDest("claude", "settings.json", handEdited);
+    writeConfig("claude/settings.json", JSON.stringify({ model: "opus", theme: "light" }));
+    configInstall("claude", { home, configDir, statePath });
+    expect(readDest("claude", "settings.json")).toBe(handEdited);
   });
 });
