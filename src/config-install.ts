@@ -114,6 +114,35 @@ function resolveOwnedFile(
 }
 
 /**
+ * The hash to record for an mcp-managed destination re-read from disk after a
+ * target installer merged its MCP sections in — the same quantity the write path
+ * would have recorded for it: the stripped canonical hash when the file has
+ * machine-owned keys, the raw content hash otherwise. Recording a raw hash for a
+ * file with owned keys would make the next sync's stripped comparison fail and
+ * report ai-kit's own merge as drift, on exactly the churning files this feature
+ * exists for.
+ *
+ * A file the installers just parsed and rewrote should always parse here; if it
+ * somehow does not, the raw hash is still the honest record of the bytes on disk,
+ * so this warns and degrades rather than failing an otherwise complete install
+ * (the next run reads the file as drifted and says so).
+ */
+function rehashMcpManaged(dest: string, keys: string[]): string {
+  const content = readFileSync(dest, "utf-8");
+  const kind = keys.length > 0 ? structuredKind(dest) : null;
+  if (kind === null) {
+    return sha256(content);
+  }
+  try {
+    return sha256(stripOwnedKeys(content, keys, kind, dest));
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    log.warn(`Recorded a whole-file hash for ${dest} after the MCP merge: ${detail}`);
+    return sha256(content);
+  }
+}
+
+/**
  * Write a config file set under `rootDir`, creating parent directories, with
  * drift-aware overwrite (PRD behaviors 7, 8, 9):
  *
@@ -229,6 +258,10 @@ export interface ConfigTargetOutcome {
   rootDir: string;
   /** Whether the config tree held any files for this target this run. */
   hadFiles: boolean;
+  /** This target's slice of the machine-owned manifest, resolved when the phase
+   * loaded it. Carried here so the post-merge re-hash strips the same keys the
+   * write did without re-reading the manifest (see {@link finalizeMcpManagedHashes}). */
+  ownedKeysFor: (relPath: string) => string[];
 }
 
 /** Global config state is keyed under `path: undefined` — the same key the main
@@ -317,10 +350,11 @@ function writeConfigForTarget(
     expandedFiles.push({ ...file, content });
   }
 
+  const ownedKeysFor = (relPath: string) => opts.machineOwned.ownedKeysFor(target, relPath);
   const outcome = installConfigFiles(expandedFiles, rootDir, {
     recordedHashes: opts.recordedHashes,
     force: opts.force,
-    ownedKeysFor: (relPath) => opts.machineOwned.ownedKeysFor(target, relPath),
+    ownedKeysFor,
   });
 
   for (const relPath of outcome.installed) {
@@ -343,6 +377,7 @@ function writeConfigForTarget(
     hashes: outcome.hashes,
     rootDir,
     hadFiles: files.length > 0,
+    ownedKeysFor,
   };
 }
 
@@ -382,7 +417,15 @@ export function configPhase(target: TargetName, options: ConfigPhaseOptions): Co
   const rootDir = configRootFor(target, options.home);
 
   if (files.length === 0) {
-    return { installed: [], skippedDrift: [], skippedMissingVar: [], hashes: {}, rootDir, hadFiles: false };
+    return {
+      installed: [],
+      skippedDrift: [],
+      skippedMissingVar: [],
+      hashes: {},
+      rootDir,
+      hadFiles: false,
+      ownedKeysFor: (relPath) => machineOwned.ownedKeysFor(target, relPath),
+    };
   }
 
   log.heading(`Installing config to ${target} (global)`);
@@ -401,6 +444,10 @@ export function configPhase(target: TargetName, options: ConfigPhaseOptions): Co
  * the config phase wrote this run so the recorded hash covers the final merged
  * content (PRD behavior 10) — otherwise the next sync sees ai-kit's own MCP merge
  * as drift. Returns the config-phase hash map with those entries updated from disk.
+ *
+ * A file that is both mcp-managed and machine-owned (Codex's `config.toml` is
+ * both) is re-hashed stripped, matching what the write recorded — the owned keys
+ * the machine churns must be as invisible to this hash as to that one.
  */
 export function finalizeMcpManagedHashes(target: TargetName, outcome: ConfigTargetOutcome): Record<string, string> {
   const hashes = { ...outcome.hashes };
@@ -410,7 +457,7 @@ export function finalizeMcpManagedHashes(target: TargetName, outcome: ConfigTarg
     }
     const dest = join(outcome.rootDir, relPath);
     if (existsSync(dest)) {
-      hashes[relPath] = sha256(readFileSync(dest, "utf-8"));
+      hashes[relPath] = rehashMcpManaged(dest, outcome.ownedKeysFor(relPath));
     }
   }
   return hashes;
@@ -480,7 +527,7 @@ export function configInstall(target?: string, options: ConfigInstallOptions = {
           continue;
         }
         merger(mcps, home);
-        finalHashes[relPath] = sha256(readFileSync(join(outcome.rootDir, relPath), "utf-8"));
+        finalHashes[relPath] = rehashMcpManaged(join(outcome.rootDir, relPath), machineOwned.ownedKeysFor(t, relPath));
       }
     }
 

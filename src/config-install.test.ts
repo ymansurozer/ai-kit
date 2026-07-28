@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSy
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { installConfigFiles, configInstall } from "./config-install";
+import { installConfigFiles, configInstall, type ConfigInstallOptions } from "./config-install";
 import { stripOwnedKeys } from "./owned-keys";
 import { readStateFrom, writeStateTo, saveMachineOverrideTo } from "./state";
 import { configRootFor } from "./targets/descriptors";
@@ -491,6 +491,14 @@ describe("configInstall with machine-owned keys", () => {
   let configDir: string;
   let statePath: string;
 
+  /** Injected via the seam so the mcp-managed cases never read the repo mcps/ tree. */
+  const remergeMcp = {
+    name: "playwright",
+    description: "browser automation",
+    config: { command: "npx", args: ["-y", "@test/playwright"] },
+    path: "/repo/mcps/playwright.json",
+  };
+
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "ai-kit-config-owned-"));
     home = join(tmpDir, "home");
@@ -536,8 +544,16 @@ describe("configInstall with machine-owned keys", () => {
     return readStateFrom(statePath).installations.find((i) => i.target === target)?.configFiles?.[relPath];
   }
 
+  /** A machine that already ran a full `install codex --global`: only such a
+   * machine gets its MCP sections re-merged after the config write. */
+  function seedPriorFullInstall(): void {
+    writeStateTo(statePath, {
+      installations: [{ target: "codex", global: true, config: true, installedAt: "2026-01-01" }],
+    });
+  }
+
   /** Run an install with `log` captured, returning everything it printed. */
-  function installCapturingOutput(target: string, extra: { force?: boolean; machine?: string } = {}): string {
+  function installCapturingOutput(target: string, extra: Partial<ConfigInstallOptions> = {}): string {
     const spy = spyOn(console, "log").mockImplementation(() => {});
     try {
       configInstall(target, { home, configDir, statePath, mcps: [], ...extra });
@@ -720,6 +736,55 @@ describe("configInstall with machine-owned keys", () => {
     writeDest("claude", "settings.json", JSON.stringify({ model: "haiku", theme: "dark" }));
     configInstall("claude", { home, configDir, statePath, machine: "laptop" });
     expect(JSON.parse(readDest("claude", "settings.json"))).toEqual({ model: "haiku", theme: "dark" });
+  });
+
+  test("an mcp-managed file with owned keys records its post-merge hash stripped, so a re-install sees no drift", () => {
+    // Codex's config.toml is the file that is both: ai-kit writes the repo config,
+    // its own MCP merge appends server sections, and Codex writes trust entries
+    // into `projects`. Recording a raw post-merge hash here would make the next
+    // sync's stripped comparison fail on ai-kit's own merge.
+    writeManifest({ codex: { "config.toml": ["projects"] } });
+    writeConfig("codex/config.toml", 'model = "gpt-5-codex"\n');
+    seedPriorFullInstall();
+
+    configInstall("codex", { home, configDir, statePath, mcps: [remergeMcp] });
+    const afterFirst = readDest("codex", "config.toml");
+    expect(afterFirst).toContain("[mcp_servers.playwright]");
+    expect(recordedHash("codex", "config.toml")).toBe(
+      sha256(stripOwnedKeys(afterFirst, ["projects"], "toml", "config.toml")),
+    );
+
+    const output = installCapturingOutput("codex", { mcps: [remergeMcp] });
+    expect(output).not.toContain("Skipped config");
+    const afterSecond = readDest("codex", "config.toml");
+    expect(afterSecond).toContain('model = "gpt-5-codex"');
+    expect(afterSecond).toContain("[mcp_servers.playwright]");
+  });
+
+  test("a trust entry Codex writes into an owned key survives the next install, MCP sections intact", () => {
+    writeManifest({ codex: { "config.toml": ["projects"] } });
+    writeConfig("codex/config.toml", 'model = "gpt-5-codex"\n');
+    seedPriorFullInstall();
+
+    configInstall("codex", { home, configDir, statePath, mcps: [remergeMcp] });
+
+    // Codex trusts a new directory, appending to the key the machine owns — the
+    // churn this feature exists for, on the file the MCP merge also touches.
+    writeDest(
+      "codex",
+      "config.toml",
+      readDest("codex", "config.toml") + '\n[projects."/tmp/repo"]\ntrust_level = "trusted"\n',
+    );
+    writeConfig("codex/config.toml", 'model = "gpt-5.1-codex-max"\n');
+    configInstall("codex", { home, configDir, statePath, mcps: [remergeMcp] });
+
+    const written = readDest("codex", "config.toml");
+    // The repo update lands (no drift skip), the machine keeps its trust entry,
+    // and the MCP sections the config write dropped are back.
+    expect(written).toContain('model = "gpt-5.1-codex-max"');
+    expect(written).toContain('[projects."/tmp/repo"]');
+    expect(written).toContain('trust_level = "trusted"');
+    expect(written).toContain("[mcp_servers.playwright]");
   });
 
   test("with no manifest, the recorded hash is the raw file hash and any edit is drift (regression guard)", () => {
