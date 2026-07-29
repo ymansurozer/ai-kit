@@ -47,8 +47,13 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=${cfg.cwd}
 ExecStart=${execStart}
-Restart=on-failure
+# always, not on-failure: earlyoom kills by SIGTERM, which systemd counts as a
+# clean exit — on-failure would leave the watcher dead until someone noticed.
+Restart=always
 RestartSec=10
+# Keep the watcher off OOM killers' preferred-victim lists (earlyoom badness-boosts
+# anything named "bun"); the watcher itself is a few MB and never the real hog.
+OOMScoreAdjust=-500
 Environment=PATH=${cfg.pathEnv}
 
 [Install]
