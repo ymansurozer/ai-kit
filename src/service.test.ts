@@ -42,7 +42,9 @@ describe("renderSystemdUnit", () => {
     expect(unit).toContain("WorkingDirectory=/home/dev/ai-kit");
     expect(unit).toContain("ExecStart=/home/dev/.bun/bin/bun /home/dev/ai-kit/src/cli.ts watch --interval 45");
     expect(unit).toContain("Environment=PATH=/home/dev/.bun/bin:/usr/bin:/bin");
-    expect(unit).toContain("Restart=on-failure");
+    // always, not on-failure: a SIGTERM kill (earlyoom) counts as a clean exit.
+    expect(unit).toContain("Restart=always");
+    expect(unit).toContain("OOMScoreAdjust=-500");
     expect(unit).toContain("WantedBy=default.target");
   });
 
