@@ -90,6 +90,74 @@ describe("install", () => {
     }
   });
 
+  test("an MCP's setup runs once across targets and runs, and again after a bump", () => {
+    const setupLog = join(homeDir, "setup.log");
+    const writeSetupMcp = (version: string) =>
+      writeFileSync(
+        mcpPath,
+        JSON.stringify({
+          description: "test mcp",
+          config: { command: "true" },
+          setup: { command: "sh", args: ["-c", `echo ${version} >> "$HOME/setup.log"`] },
+        }) + "\n",
+      );
+    const runWithSetup = (script: string) =>
+      spawnSync(process.execPath, ["-e", script], {
+        cwd: repoRoot,
+        env: { ...process.env, HOME: homeDir, AI_KIT_SKIP_MCP_SETUP: "" },
+        encoding: "utf8",
+      });
+    const options = { global: false, cwd: projectDir, skills: [], mcps: [mcpName] };
+
+    writeSetupMcp("1.0.0");
+    expect(runWithSetup(installScript("all", options)).status).toBe(0);
+    expect(runWithSetup(installScript("claude", options)).status).toBe(0);
+    expect(readFileSync(setupLog, "utf-8")).toBe("1.0.0\n");
+
+    writeSetupMcp("1.1.0");
+    expect(runWithSetup(installScript("claude", options)).status).toBe(0);
+    expect(readFileSync(setupLog, "utf-8")).toBe("1.0.0\n1.1.0\n");
+  });
+
+  test("a failing setup keeps the MCP's previous entry, installs the rest, and exits non-zero", () => {
+    const otherName = `other-mcp-${uniq()}`;
+    makeMcp(otherName);
+    const writeSetupMcp = (launcher: string, setup: string) =>
+      writeFileSync(
+        mcpPath,
+        JSON.stringify({
+          description: "test mcp",
+          config: { command: launcher },
+          setup: { command: "sh", args: ["-c", setup] },
+        }),
+      );
+    const cli = (...args: string[]) =>
+      spawnSync(process.execPath, [join(repoRoot, "src", "cli.ts"), ...args], {
+        cwd: projectDir,
+        env: { ...process.env, HOME: homeDir, AI_KIT_SKIP_MCP_SETUP: "" },
+        encoding: "utf8",
+      });
+    const servers = () => JSON.parse(readFileSync(join(projectDir, ".mcp.json"), "utf-8")).mcpServers;
+
+    writeSetupMcp("launcher-1", "true");
+    expect(cli("install", "claude", "--mcps", mcpName).status).toBe(0);
+
+    writeSetupMcp("launcher-2", "exit 1");
+    const failed = cli("install", "claude", "--mcps", `${mcpName},${otherName}`);
+    expect(failed.status).toBe(1);
+    expect(failed.stdout).toContain(`MCP ${mcpName} keeps its previous launch command`);
+    expect(servers()[mcpName].command).toBe("launcher-1");
+    expect(servers()[otherName]).toBeDefined();
+
+    // Sync (what the watch service runs) reports the same partial install, so it retries.
+    expect(cli("sync").status).toBe(1);
+    expect(servers()[mcpName].command).toBe("launcher-1");
+
+    writeSetupMcp("launcher-2", "true");
+    expect(cli("sync").status).toBe(0);
+    expect(servers()[mcpName].command).toBe("launcher-2");
+  });
+
   test("a corrupt global claude MCP JSON fails naming the file", () => {
     const claudeJson = join(homeDir, ".claude.json");
     writeFileSync(claudeJson, "{ this is not valid json");

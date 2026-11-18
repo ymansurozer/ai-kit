@@ -4,6 +4,7 @@ import type { Skill, McpConfig } from "./config";
 import { loadSkills, loadMcps } from "./config";
 import { configPhase, finalizeMcpManagedHashes, type ConfigTargetOutcome } from "./config-install";
 import { log } from "./log";
+import { runMcpSetups } from "./mcp-setup";
 import { pruneMcps, pruneSkills } from "./prune";
 import { findInstallation, saveInstallation } from "./state";
 import { installClaude } from "./targets/claude";
@@ -63,13 +64,19 @@ function warnNotFoundOnce(options: InstallOptions): void {
   }
 }
 
-export function install(target: string, options: InstallOptions): void {
+/**
+ * Install skills and MCPs to a target (or `all`). Returns false when the install
+ * was partial — a setup-backed MCP was held back because its setup isn't ready —
+ * so the CLI exits non-zero and `watch` retries.
+ */
+export function install(target: string, options: InstallOptions): boolean {
   if (target === "all") {
     warnNotFoundOnce(options);
+    let complete = true;
     for (const t of Object.keys(TARGETS)) {
-      install(t, { ...options, suppressNotFoundWarnings: true });
+      complete = install(t, { ...options, suppressNotFoundWarnings: true }) && complete;
     }
-    return;
+    return complete;
   }
 
   if (!TARGETS[target]) {
@@ -152,15 +159,29 @@ export function install(target: string, options: InstallOptions): void {
   if (nothingToInstall && !supportsMcps && mcps.length > 0) {
     log.warn("Pi does not support MCPs — nothing to install");
     if (isNoOp) {
-      return;
+      return true;
     }
   } else if (isNoOp) {
     log.warn("Nothing to install");
-    return;
+    return true;
   }
 
+  // An MCP whose setup isn't ready is held back: publishing it would point the
+  // target at a launcher that doesn't exist yet, so the target keeps whatever entry
+  // it already has and the run reports itself partial.
+  const heldMcps = nothingToInstall ? [] : runMcpSetups(installedMcps);
+  for (const name of heldMcps) {
+    log.warn(`MCP ${name} keeps its previous launch command until its setup succeeds (re-run install or sync)`);
+  }
+  const publishedMcps = installedMcps.filter((m) => !heldMcps.includes(m.name));
+
   if (!nothingToInstall) {
-    TARGETS[target](skills, mcps, options.global, cwd);
+    TARGETS[target](
+      skills,
+      mcps.filter((m) => !heldMcps.includes(m.name)),
+      options.global,
+      cwd,
+    );
   }
 
   // Prune orphans: names the snapshot recorded that this run did NOT install. Only
@@ -168,7 +189,11 @@ export function install(target: string, options: InstallOptions): void {
   // hand-added MCP servers are never in the snapshot, so they are never touched.
   const home = homedir();
   const thisRunSkillNames = skills.map((s) => s.name);
-  const thisRunMcpNames = installedMcps.map((m) => m.name);
+  // A held MCP that ai-kit installed before stays owned: not pruned, still snapshotted.
+  const thisRunMcpNames = [
+    ...publishedMcps.map((m) => m.name),
+    ...heldMcps.filter((n) => (priorMcps ?? []).includes(n)),
+  ];
   const pruneSkillNames = (priorSkills ?? []).filter((n) => !thisRunSkillNames.includes(n));
   const pruneMcpNames = (priorMcps ?? []).filter((n) => !thisRunMcpNames.includes(n));
   pruneSkills(t, options.global, cwd, home, pruneSkillNames);
@@ -203,5 +228,6 @@ export function install(target: string, options: InstallOptions): void {
     installedAt: new Date().toISOString(),
   });
 
-  log.info(`Installed ${skills.length} skill(s) and ${installedMcps.length} MCP(s)`);
+  log.info(`Installed ${skills.length} skill(s) and ${publishedMcps.length} MCP(s)`);
+  return heldMcps.length === 0;
 }

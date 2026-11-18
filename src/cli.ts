@@ -136,12 +136,15 @@ if (import.meta.main) {
         }
         warnUnknownFlags(flags, ["global", "force", "skills", "mcps"]);
         rejectStrayPositionals(rest);
-        install(target, {
+        const complete = install(target, {
           global: flags.global === true,
           force: flags.force === true,
           skills: typeof flags.skills === "string" ? flags.skills.split(",") : undefined,
           mcps: typeof flags.mcps === "string" ? flags.mcps.split(",") : undefined,
         });
+        if (!complete) {
+          process.exitCode = 1;
+        }
         break;
       }
 
@@ -180,7 +183,9 @@ if (import.meta.main) {
         const { flags, positionals } = parseArgs(args.slice(1));
         warnUnknownFlags(flags, []);
         rejectStrayPositionals(positionals);
-        sync();
+        if (!sync()) {
+          process.exitCode = 1;
+        }
         break;
       }
 

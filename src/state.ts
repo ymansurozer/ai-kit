@@ -43,6 +43,10 @@ export interface State {
   // Optional override for this machine's overlay-resolution name. Absent means
   // "use the normalized hostname" (see machine.ts). Older state files lack it.
   machine?: string;
+  // MCP name → hash of the setup command ai-kit last ran successfully for it (see
+  // mcp-setup.ts). Machine-wide, not per installation: a setup installs into
+  // ~/.ai-kit, which every installation's launch command shares.
+  mcpSetups?: Record<string, string>;
 }
 
 export function readStateFrom(path: string): State {
@@ -135,6 +139,23 @@ export function readMachineOverrideFrom(path: string): string | undefined {
 export function saveMachineOverrideTo(path: string, name: string): void {
   const state = readStateFrom(path);
   state.machine = name;
+  writeStateTo(path, state);
+}
+
+/** Record that an MCP's setup (identified by its hash) completed, preserving the rest of state. */
+export function saveMcpSetupTo(path: string, name: string, hash: string): void {
+  const state = readStateFrom(path);
+  state.mcpSetups = { ...state.mcpSetups, [name]: hash };
+  writeStateTo(path, state);
+}
+
+/** Forget an MCP's recorded setup, so it reads as not ready until a run succeeds again. */
+export function clearMcpSetupFrom(path: string, name: string): void {
+  const state = readStateFrom(path);
+  if (state.mcpSetups?.[name] === undefined) {
+    return;
+  }
+  delete state.mcpSetups[name];
   writeStateTo(path, state);
 }
 
