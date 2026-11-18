@@ -4,13 +4,16 @@ import { install } from "./install";
 import { log } from "./log";
 import { readState } from "./state";
 
-export function sync(): void {
+/** Re-install every tracked installation. Returns false when any install was partial. */
+export function sync(): boolean {
   const state = readState();
 
   if (state.installations.length === 0) {
     log.warn("No tracked installations. Run `ai-kit install <target>` first.");
-    return;
+    return true;
   }
+
+  let complete = true;
 
   log.heading("Syncing all tracked installations");
 
@@ -24,13 +27,19 @@ export function sync(): void {
 
     log.info(`Syncing: ${label}`);
 
-    install(inst.target, {
+    const installed = install(inst.target, {
       global: inst.global,
       cwd: inst.path,
       skills: inst.skills,
       mcps: inst.mcps,
     });
+    complete = installed && complete;
   }
 
+  if (!complete) {
+    log.warn("Sync finished with MCPs held back until their setup succeeds");
+    return false;
+  }
   log.success("Sync complete");
+  return true;
 }

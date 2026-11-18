@@ -22,6 +22,7 @@ bun link              # link ai-kit as global CLI command
 
 - `loadSkills()` — scans `skills/` for subdirs with `SKILL.md`, parses YAML frontmatter
 - `loadMcps()` — combines external MCPs from `mcps/*.json` + local servers from `servers/*/index.ts`
+- `mcps/*.json` may add `setup: { command, args, creates }`: a one-time install step (e.g. a pinned package under `~/.ai-kit/mcps/`) so launch needs no network. `src/mcp-setup.ts` runs it from `install`/`sync` under a per-setup lockfile in `~/.ai-kit/locks/`, at most once per run. A setup is ready when state's `mcpSetups` holds its command-line hash and its `creates` path exists; until then `install` and `config install` don't publish that MCP (the target keeps its old entry) and `install`/`sync` exit non-zero so `watch` retries. Targets never see `setup`; the `bunfig.toml` test preload sets `AI_KIT_SKIP_MCP_SETUP` (setups neither run nor gate)
 - `loadServersFrom()` — scans `servers/`, generates McpConfig with `command: "bun", args: ["run", "<absolute-path>"]` and `isLocal: true`
 - All loading functions have a `*From(dir)` variant for testability
 

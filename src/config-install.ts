@@ -14,6 +14,7 @@ import {
 import { log } from "./log";
 import { resolveMachineFrom } from "./machine";
 import { loadMachineOwnedFrom, type MachineOwnedKeys } from "./machine-owned";
+import { unreadyMcpSetupsFrom } from "./mcp-setup";
 import { spliceOwnedKeys, stripOwnedKeys } from "./owned-keys";
 import { findInstallationFrom, saveInstallationTo, STATE_PATH } from "./state";
 import { structuredKind, type StructuredKind } from "./structured";
@@ -522,7 +523,14 @@ export function configInstall(target?: string, options: ConfigInstallOptions = {
         if (!outcome.installed.includes(relPath)) {
           continue;
         }
-        const mcps = resolveMcpSelection(allMcps(), existing.mcps);
+        // A setup-backed MCP isn't restored until install/sync has made its setup
+        // ready: its new launch command would point at a launcher not there yet.
+        const selected = resolveMcpSelection(allMcps(), existing.mcps);
+        const unready = unreadyMcpSetupsFrom(statePath, selected);
+        for (const name of unready) {
+          log.warn(`MCP ${name} not restored to ${relPath}: its setup isn't ready — run ai-kit install or sync`);
+        }
+        const mcps = selected.filter((m) => !unready.includes(m.name));
         if (mcps.length === 0) {
           continue;
         }

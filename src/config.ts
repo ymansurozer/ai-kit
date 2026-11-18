@@ -34,12 +34,25 @@ export type HttpMcpTransportConfig = {
   [key: string]: unknown;
 };
 
+/**
+ * A one-time install step for an MCP server (e.g. fetching a pinned package and
+ * its browser), run by `install`/`sync` rather than on every launch. Re-runs when
+ * the command or args change, or when `creates` (a path the setup produces; `~`
+ * and `$HOME` expand) is missing — see mcp-setup.ts.
+ */
+export interface McpSetup {
+  command: string;
+  args?: string[];
+  creates?: string;
+}
+
 export interface McpConfig {
   name: string;
   description: string;
   config: StdioMcpTransportConfig | HttpMcpTransportConfig;
   path: string;
   isLocal?: boolean;
+  setup?: McpSetup;
 }
 
 const ENV_VAR_PATTERN = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
@@ -141,6 +154,18 @@ export function transformEnvVars<T>(value: T, transform: (varName: string) => st
   return value;
 }
 
+function isMcpSetup(value: unknown): value is McpSetup {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const { command, args, creates } = value as Record<string, unknown>;
+  return (
+    typeof command === "string" &&
+    (args === undefined || (Array.isArray(args) && args.every((a) => typeof a === "string"))) &&
+    (creates === undefined || typeof creates === "string")
+  );
+}
+
 export function loadMcpsFrom(dir: string): McpConfig[] {
   if (!existsSync(dir)) {
     return [];
@@ -150,17 +175,31 @@ export function loadMcpsFrom(dir: string): McpConfig[] {
     .filter((f) => f.endsWith(".json"))
     .map((f) => {
       const mcpPath = join(dir, f);
-      const content = readJsonFile(mcpPath) as { config?: Record<string, unknown>; description?: string };
+      const content = readJsonFile(mcpPath) as {
+        config?: Record<string, unknown>;
+        description?: string;
+        setup?: unknown;
+      };
       const config = content.config;
       if (!config || (typeof config.command !== "string" && typeof config.url !== "string")) {
         throw new Error(`Invalid MCP config in ${f}: missing "config.command" or "config.url"`);
       }
-      return {
+      const { setup } = content;
+      if (setup !== undefined && !isMcpSetup(setup)) {
+        throw new Error(
+          `Invalid MCP config in ${f}: "setup" needs a string "command", optional string[] "args", and optional string "creates"`,
+        );
+      }
+      const mcp: McpConfig = {
         name: f.replace(/\.json$/, ""),
         description: content.description || "",
         config: config as McpConfig["config"],
         path: mcpPath,
       };
+      if (isMcpSetup(setup)) {
+        mcp.setup = setup;
+      }
+      return mcp;
     });
 }
 

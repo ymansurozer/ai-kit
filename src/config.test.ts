@@ -213,6 +213,47 @@ describe("loadMcpsFrom", () => {
     expect(mcps[0].config.command).toBe("npx");
   });
 
+  test("loads an MCP's optional setup command", () => {
+    writeFileSync(
+      join(tmpDir, "browser.json"),
+      JSON.stringify({
+        description: "Browser",
+        config: { command: "browser-mcp" },
+        setup: { command: "sh", args: ["-c", "npm install browser-mcp@1.2.3"], creates: "~/bin/browser-mcp" },
+      }),
+    );
+    writeFileSync(join(tmpDir, "plain.json"), JSON.stringify({ config: { command: "plain-mcp" } }));
+
+    const mcps = loadMcpsFrom(tmpDir);
+    const browser = mcps.find((m) => m.name === "browser")!;
+    const plain = mcps.find((m) => m.name === "plain")!;
+    expect(browser.setup).toEqual({
+      command: "sh",
+      args: ["-c", "npm install browser-mcp@1.2.3"],
+      creates: "~/bin/browser-mcp",
+    });
+    expect(browser.config).toEqual({ command: "browser-mcp" });
+    expect(plain.setup).toBeUndefined();
+  });
+
+  test("rejects a setup without a string command", () => {
+    writeFileSync(
+      join(tmpDir, "broken.json"),
+      JSON.stringify({ config: { command: "x" }, setup: { args: ["install"] } }),
+    );
+
+    expect(() => loadMcpsFrom(tmpDir)).toThrow(/broken\.json.*"setup"/);
+  });
+
+  test("rejects a setup whose creates is not a string", () => {
+    writeFileSync(
+      join(tmpDir, "broken.json"),
+      JSON.stringify({ config: { command: "x" }, setup: { command: "sh", creates: ["a"] } }),
+    );
+
+    expect(() => loadMcpsFrom(tmpDir)).toThrow(/broken\.json.*"setup"/);
+  });
+
   test("loads HTTP MCP configs from JSON files", () => {
     writeFileSync(
       join(tmpDir, "docs-search.json"),

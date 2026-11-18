@@ -4,7 +4,9 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSy
 import { tmpdir } from "os";
 import { join } from "path";
 
+import type { McpConfig } from "./config";
 import { installConfigFiles, configInstall, type ConfigInstallOptions } from "./config-install";
+import { runMcpSetupsFrom } from "./mcp-setup";
 import { stripOwnedKeys } from "./owned-keys";
 import { readStateFrom, writeStateTo, saveMachineOverrideTo } from "./state";
 import { configRootFor } from "./targets/descriptors";
@@ -447,6 +449,26 @@ describe("configInstall MCP re-merge on shared destination files (behavior 10)",
     // The repo config AND the MCP section both survive.
     expect(content).toContain('model = "gpt-5-codex"');
     expect(content).toContain("[mcp_servers.playwright]");
+  });
+
+  test("does not restore a setup-backed MCP until its setup is ready", () => {
+    writeConfig("codex/config.toml", 'model = "gpt-5-codex"\n');
+    seedPriorFullInstall();
+    const backed: McpConfig = { ...mcp, setup: { command: "sh", args: ["-c", "true"] } };
+    const dest = join(configRootFor("codex", home), "config.toml");
+    // The test preload skips setups everywhere; this test exercises the real check.
+    const skip = process.env.AI_KIT_SKIP_MCP_SETUP;
+    delete process.env.AI_KIT_SKIP_MCP_SETUP;
+    try {
+      configInstall("codex", { home, configDir, statePath, mcps: [backed] });
+      expect(readFileSync(dest, "utf-8")).not.toContain("[mcp_servers.playwright]");
+
+      runMcpSetupsFrom(statePath, [backed], () => ({ status: 0 }), new Set());
+      configInstall("codex", { home, configDir, statePath, mcps: [backed] });
+      expect(readFileSync(dest, "utf-8")).toContain("[mcp_servers.playwright]");
+    } finally {
+      process.env.AI_KIT_SKIP_MCP_SETUP = skip;
+    }
   });
 
   test("an immediate second install reports zero drift: content is byte-stable and still holds both", () => {
