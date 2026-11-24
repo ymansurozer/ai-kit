@@ -11,6 +11,7 @@ AI Kit is a Bun CLI that centralizes AI skills (Agent Skills standard `SKILL.md`
 ```bash
 bun test              # run all tests
 bun run typecheck     # tsc --noEmit
+bun run lint          # oxfmt --check + oxlint
 bun link              # link ai-kit as global CLI command
 ```
 
